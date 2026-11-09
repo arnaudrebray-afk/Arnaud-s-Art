@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#17493d">
+<title>Cimaise</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400..700&family=Libre+Franklin:wght@400;500;600;700&display=swap">
+<style>/* Cimaise : les murs d'un musée que l'on parcourt, chaque époque est une salle peinte. Une colonne de temps verticale, cartels clairs sur murs profonds. */
+:root{
+  --wall:#17493d; --cartel:#f0ede5; --cartel-2:#e2ddd0; --ink:#20231f; --ink-2:#5b5f57;
+  --brass:#d0ac63; --ivory:#f5f2ea; --sapin:#17493d;
+  --display:"Bodoni Moda","Didot","Bodoni MT","Bodoni 72","GFS Didot","Noto Serif Display",Georgia,serif;
+  --body:"Libre Franklin","Helvetica Neue",Roboto,Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:#17493d;color:var(--ivory);font:15px/1.5 var(--body);overscroll-behavior:none}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+h1,h2,h3,p{margin:0;text-wrap:pretty}
+h1,h2,h3{text-wrap:balance}
+#app{height:100%;height:100dvh;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+
+/* En-tête : l'époque et l'année sous la ligne de lecture */
+#top{background:var(--wall);transition:background .35s;padding:calc(env(safe-area-inset-top) + 8px) 16px 8px;display:flex;align-items:flex-end;gap:12px;min-height:84px}
+#era-btn{flex:1;min-width:0;text-align:left;font-family:var(--display);font-size:20px;line-height:1.12;font-weight:500}
+#year{font-family:var(--display);font-size:46px;line-height:.95;font-weight:500;font-variant-numeric:lining-nums;white-space:nowrap;letter-spacing:-.01em}
+#year small{font-size:15px;font-family:var(--body);margin-left:4px;letter-spacing:0}
+#menu{width:44px;height:44px;margin:-4px -10px 0 -4px;align-self:flex-start;display:grid;place-items:center}
+#menu svg{width:22px;height:22px;stroke:var(--ivory);fill:none;stroke-width:1.6}
+#top.plain #year{display:none}
+#top.plain #era-btn{font-size:28px}
+
+main{position:relative;min-height:0;overflow:hidden}
+.view{position:absolute;inset:0;display:none}
+.view.on{display:flex;flex-direction:column}
+
+/* Frise */
+#cols{display:flex;align-items:center;gap:8px;padding:6px 12px;background:rgba(0,0,0,.28);font-size:12.5px}
+#cols .seg{display:flex;gap:2px;flex:1}
+#cols .seg button{padding:6px 11px;border-radius:2px;min-height:32px;color:rgba(245,242,234,.78)}
+#cols .seg button[aria-pressed=true]{background:var(--ivory);color:var(--ink);font-weight:600}
+#cols .zoom{display:flex;gap:4px}
+#cols .zoom button{min-width:36px;height:32px;padding:0 6px;border:1px solid rgba(245,242,234,.4);border-radius:2px;font-size:16px;line-height:1}
+#cols .zoom button.txt{font-size:12.5px}
+#tl{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;background:#111}
+.room{position:absolute;left:0;right:0;top:0}
+.room-name{position:absolute;left:3px;top:0;writing-mode:vertical-rl;font-family:var(--display);font-size:13.5px;line-height:1;white-space:nowrap;color:rgba(245,242,234,.72)}
+.tick{position:absolute;left:18px;width:40px;top:0;font-size:11px;line-height:1;font-variant-numeric:tabular-nums;color:rgba(245,242,234,.74);border-top:1px solid rgba(245,242,234,.4);padding-top:2px}
+.bar{position:absolute;top:0;overflow:hidden;background:rgba(245,242,234,.13);color:var(--ivory);border-left:2px solid var(--ivory);text-align:left;font-size:12px;line-height:1.14;font-weight:500;padding:0}
+.bar.m{background:rgba(208,172,99,.16);border-left-color:var(--brass);color:#f0dcae}
+.bar.on{background:var(--cartel);color:var(--ink)}
+.bar.m.on{background:var(--brass);color:var(--ink)}
+.bar span{display:block;padding:3px 4px;white-space:nowrap}
+.bar[data-l=""] span{visibility:hidden}
+.bar[data-l=h] span{white-space:normal}
+.bar[data-l=v] span{writing-mode:vertical-rl;padding:4px 1px;font-size:11.5px;white-space:normal;height:100%}
+.wk{position:absolute;top:0;right:5px;width:44px;height:44px;border:2px solid var(--brass);background:var(--cartel);overflow:hidden;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.45)}
+.wk img{width:100%;height:100%;object-fit:cover;display:block}
+.wk.approx{border-style:dashed}
+.wk b{position:absolute;right:0;bottom:0;background:var(--brass);color:var(--ink);font-size:11px;line-height:1;padding:2px 4px;font-weight:700}
+.wk i{font:600 9.5px/1.1 var(--body);display:block;padding:3px;overflow:hidden;height:100%}
+#line{position:absolute;left:0;right:0;height:0;border-top:1px solid var(--brass);pointer-events:none;box-shadow:0 0 0 .5px rgba(0,0,0,.5)}
+#chips{background:rgba(0,0,0,.28);min-height:50px;display:flex;align-items:center;gap:6px;overflow-x:auto;padding:7px 12px;scrollbar-width:none}
+#chips::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:6px 11px;min-height:34px;border-radius:2px;background:var(--cartel);color:var(--ink);font-size:13px;font-weight:500;white-space:nowrap}
+.chip.m{background:var(--brass)}
+#nav{display:grid;grid-template-columns:1fr 1fr 64px 1fr 1fr;align-items:center;background:#10362d;padding:4px 4px calc(env(safe-area-inset-bottom) + 4px)}
+#nav button.t{min-height:52px;font-size:13px;color:rgba(245,242,234,.75);border-top:2px solid transparent}
+#nav button.t[aria-current=page]{color:var(--ivory);font-weight:600;border-top-color:var(--brass)}
+#add{width:54px;height:54px;border-radius:50%;background:var(--brass);color:var(--ink);font-size:32px;line-height:1;font-family:var(--display);justify-self:center;margin-top:-8px;box-shadow:0 3px 10px rgba(0,0,0,.4)}
+
+/* Vues liste */
+.pad{padding:14px 16px 24px;overflow-y:auto;flex:1;min-height:0}
+.filters{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;scrollbar-width:none}
+.filters button{flex:none;padding:7px 12px;min-height:36px;border:1px solid rgba(245,242,234,.45);border-radius:2px;font-size:13px}
+.filters button[aria-pressed=true]{background:var(--ivory);color:var(--ink);border-color:var(--ivory);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.tile{aspect-ratio:1;background:var(--cartel);color:var(--ink);overflow:hidden;position:relative;border:2px solid transparent;text-align:left;display:block;width:100%}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile p{padding:7px;font-size:12px;line-height:1.25}
+.tile em{position:absolute;left:0;bottom:0;background:var(--brass);color:var(--ink);font-style:normal;font-size:10.5px;font-weight:600;padding:2px 5px}
+.empty{padding:20px 0;max-width:34em}
+.empty h2{font-family:var(--display);font-size:25px;font-weight:500;margin-bottom:6px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:9px 16px;background:var(--sapin);color:var(--ivory);border-radius:2px;font-weight:600;font-size:14px;text-decoration:none;text-align:center}
+.btn.alt{background:none;box-shadow:inset 0 0 0 1px currentColor;color:var(--sapin)}
+.btn.brass{background:var(--brass);color:var(--ink)}
+.btn.danger{background:none;color:#8c2a22;box-shadow:inset 0 0 0 1px #8c2a22}
+.btn.danger.arm{background:#8c2a22;color:#fff}
+.list{display:flex;flex-direction:column;gap:8px}
+.card{background:var(--cartel);color:var(--ink);padding:12px 14px;text-align:left;display:block;width:100%;border-radius:1px}
+.card h3{font-family:var(--display);font-size:19px;font-weight:600;line-height:1.2}
+.card p{font-size:13.5px;color:var(--ink-2)}
+.card .quote{color:var(--ink);margin-top:4px}
+.head-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.head-row h2,.sec-t{font-family:var(--display);font-size:22px;font-weight:500}
+.sec-t{margin:18px 0 8px}
+.searchbar{display:flex;gap:8px;margin-bottom:12px}
+.searchbar input{flex:1;min-width:0;min-height:46px;padding:9px 12px;background:var(--cartel);color:var(--ink);border:0;border-radius:2px;font-size:16px}
+.note{font-size:13.5px;color:rgba(245,242,234,.8)}
+
+/* Fiches : cartels clairs */
+#veil{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:9}
+#veil.on{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:93%;max-height:93dvh;background:var(--cartel);color:var(--ink);z-index:10;display:flex;flex-direction:column;border-top:3px solid var(--brass);max-width:640px;margin:0 auto;animation:up .2s ease-out}
+@keyframes up{from{transform:translateY(24px);opacity:.4}}
+.sheet-h{display:flex;align-items:flex-start;gap:10px;padding:14px 16px 8px}
+.sheet-h h2{flex:1;font-family:var(--display);font-size:29px;line-height:1.08;font-weight:500}
+.sheet-x{width:44px;height:44px;margin:-8px -10px 0 0;font-size:28px;line-height:1;color:var(--ink);flex:none}
+.sheet-b{overflow-y:auto;padding:0 16px calc(env(safe-area-inset-bottom) + 20px);flex:1;min-height:0}
+.sheet-f{display:flex;gap:8px;padding:10px 16px calc(env(safe-area-inset-bottom) + 10px);border-top:1px solid var(--cartel-2)}
+.sheet-f .btn{flex:1}
+.dates{color:var(--ink-2);font-size:14px;margin-bottom:10px}
+.sheet-b p.lead{font-size:16px;line-height:1.5;margin-bottom:6px;max-width:62ch}
+.sheet-b h3{font-family:var(--display);font-size:20px;font-weight:600;margin:18px 0 6px}
+.keys{margin:0;padding:0 0 0 18px}
+.keys li{margin:4px 0}
+.keys li::marker{color:#9a7a36}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{padding:6px 10px;min-height:34px;background:var(--cartel-2);border-radius:2px;font-size:13.5px;color:var(--ink);text-align:left}
+.tag.sug{background:var(--brass);font-weight:600}
+.tag[aria-pressed=true]{background:var(--sapin);color:var(--ivory);font-weight:600}
+.oeuvre{display:block;text-align:left;width:100%;padding:8px 0;border-bottom:1px solid var(--cartel-2)}
+.oeuvre b{font-family:var(--display);font-size:17px;font-weight:600;display:block;line-height:1.2}
+.oeuvre span{font-size:13.5px;color:var(--ink-2)}
+.wiki{background:#e6e2d6;padding:12px;margin-top:18px}
+.wiki p{font-size:14.5px;margin-bottom:8px}
+.wiki .row{display:flex;gap:8px;flex-wrap:wrap}
+.wiki img{float:right;width:84px;margin:0 0 6px 10px}
+.small{font-size:13px;color:var(--ink-2)}
+
+/* Formulaire */
+.form{display:flex;flex-direction:column;gap:11px}
+.prev{width:100%;max-height:200px;object-fit:contain;background:#ddd8ca;display:block}
+.f label,.f>span{display:block;font-size:13px;font-weight:600;margin-bottom:3px}
+.f input,.f select,.f textarea{width:100%;min-height:44px;padding:9px 10px;background:#fff;border:1px solid #b9b3a3;border-radius:2px;color:var(--ink);font-size:16px}
+.f textarea{min-height:92px;resize:vertical;line-height:1.4}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg2{display:flex;border:1px solid var(--sapin);border-radius:2px;overflow:hidden}
+.seg2 button{flex:1;min-height:42px;font-size:13.5px;color:var(--sapin)}
+.seg2 button[aria-pressed=true]{background:var(--sapin);color:var(--ivory);font-weight:600}
+.stars{display:flex;gap:2px}
+.stars button{width:42px;height:42px;font-size:27px;line-height:1;color:#a9a392}
+.stars button.on{color:#9a7a36}
+.hint{font-size:13px;color:var(--ink-2);margin-bottom:6px}
+#toast{position:fixed;left:16px;right:16px;bottom:96px;background:var(--ink);color:var(--ivory);padding:11px 14px;font-size:14px;z-index:30;text-align:center;display:none;border-radius:2px}
+#toast.on{display:block}
+.full{width:100%;display:block;max-height:58vh;object-fit:contain;background:#ddd8ca;margin-bottom:10px}
+.meta{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:14.5px;margin:6px 0}
+.meta dt{color:var(--ink-2)}.meta dd{margin:0}
+@media (min-width:760px){.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <button id="era-btn"></button>
+    <div id="year" aria-live="off"></div>
+    <button id="menu" aria-label="Mes données et sauvegarde"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  </header>
+  <main>
+    <section class="view" id="v-frise">
+      <div id="cols">
+        <div class="seg" role="group" aria-label="Colonnes affichées">
+          <button data-t="both">Tout</button><button data-t="w">Occident</button><button data-t="m">Monde</button>
+        </div>
+        <div class="zoom">
+          <button id="z-out" aria-label="Dézoomer">−</button><button id="z-in" aria-label="Zoomer">+</button><button id="z-all" class="txt">Vue entière</button>
+        </div>
+      </div>
+      <div id="tl"></div>
+      <div id="chips" aria-label="Courants à cette date"></div>
+    </section>
+    <section class="view" id="v-oeuvres"></section>
+    <section class="view" id="v-carnet"></section>
+    <section class="view" id="v-recherche"></section>
+  </main>
+  <nav id="nav" aria-label="Navigation">
+    <button class="t" data-v="frise">Frise</button>
+    <button class="t" data-v="oeuvres">Œuvres</button>
+    <button id="add" aria-label="Ajouter une œuvre">+</button>
+    <button class="t" data-v="carnet">Carnet</button>
+    <button class="t" data-v="recherche">Recherche</button>
+  </nav>
+</div>
+<div id="veil"></div>
+<input id="file" type="file" accept="image/*" multiple hidden>
+<div id="toast" role="status"></div>
+<script>/* Base de connaissances embarquée : disponible hors ligne, sans aucun appel réseau. */
+const M = (id, tr, n, s, e, wiki, t, k, a, o) => ({ id, tr, n, s, e, wiki, t, k, a, o });
+
+const ERAS = [
+  { ...M("e-prehistoire", "era", "Préhistoire", -40000, -3300, "Art préhistorique",
+    "Les premières images connues naissent bien avant l’écriture : parois de grottes, statuettes, puis monuments de pierre.",
+    ["Support principal : la paroi des grottes et l’objet portable", "Animaux dominants, figure humaine rare et stylisée", "Fonction encore débattue : rituelle, symbolique, narrative"],
+    ["Artistes anonymes des grottes ornées"],
+    [["Panneau des chevaux, grotte Chauvet", "Anonyme", "vers 36 000 av. J.-C.", "Ardèche"], ["Salle des Taureaux, Lascaux", "Anonyme", "vers 17 000 av. J.-C.", "Dordogne"], ["Vénus de Willendorf", "Anonyme", "vers 29 500 av. J.-C.", "Naturhistorisches Museum, Vienne"]]), wall: "#3f2c1f" },
+  { ...M("e-antiquite", "era", "Antiquité", -3300, 476, "Art antique",
+    "De l’invention de l’écriture à la chute de Rome à l’Ouest : Égypte, Mésopotamie, Grèce et Rome fixent des canons qui nourriront tout l’art occidental.",
+    ["L’art sert le pouvoir, les dieux et les morts", "La Grèce invente l’idéal de proportion du corps", "Rome diffuse ce modèle dans tout l’Empire et développe le portrait"],
+    ["Phidias", "Praxitèle", "Polyclète", "Myron", "Lysippe"],
+    [["Scribe accroupi", "Anonyme", "vers 2500 av. J.-C.", "Musée du Louvre"], ["Vénus de Milo", "Anonyme", "vers 130-100 av. J.-C.", "Musée du Louvre"], ["Colonne Trajane", "Anonyme", "113", "Rome"]]), wall: "#5c2a20" },
+  { ...M("e-moyen-age", "era", "Moyen Âge", 476, 1400, "Art médiéval",
+    "Un millénaire où l’image est d’abord religieuse : enluminures, mosaïques, abbatiales romanes puis cathédrales gothiques.",
+    ["L’Église est le premier commanditaire", "L’œuvre enseigne : on parle de « Bible des illettrés »", "L’artiste reste souvent anonyme, l’atelier prime"],
+    ["Gislebertus", "Nicolas de Verdun", "Cimabue", "Jean Pucelle"],
+    [["Tapisserie de Bayeux", "Anonyme", "vers 1070", "Musée de la Tapisserie, Bayeux"], ["Tympan de Sainte-Foy de Conques", "Anonyme", "vers 1107-1125", "Conques"], ["Vitraux de la Sainte-Chapelle", "Anonyme", "vers 1248", "Paris"]]), wall: "#1b2e5c" },
+  { ...M("e-renaissance", "era", "Renaissance", 1400, 1600, "Renaissance",
+    "Partie d’Italie, la Renaissance redécouvre l’Antiquité, place l’homme au centre et donne à l’artiste un statut d’intellectuel.",
+    ["Perspective linéaire et anatomie deviennent des savoirs", "Mécénat des princes et des banquiers, comme les Médicis", "Humanisme : sujets antiques aux côtés des sujets chrétiens"],
+    ["Léonard de Vinci", "Michel-Ange", "Raphaël", "Titien", "Dürer", "Botticelli"],
+    [["La Joconde", "Léonard de Vinci", "1503-1519", "Musée du Louvre"], ["L’École d’Athènes", "Raphaël", "1509-1511", "Musées du Vatican"], ["La Naissance de Vénus", "Botticelli", "vers 1485", "Galerie des Offices, Florence"]]), wall: "#17493d" },
+  { ...M("e-classique", "era", "Âge baroque et classique", 1600, 1780, "Art baroque",
+    "Deux siècles partagés entre l’élan baroque de la Contre-Réforme, la rigueur classique française et la légèreté rococo.",
+    ["L’art persuade et émeut pour l’Église et les monarchies", "Fondation de l’Académie royale de peinture en 1648", "Essor d’un marché privé aux Pays-Bas : scènes de genre, natures mortes"],
+    ["Caravage", "Rubens", "Rembrandt", "Velázquez", "Poussin", "Vermeer"],
+    [["Les Ménines", "Velázquez", "1656", "Musée du Prado, Madrid"], ["La Ronde de nuit", "Rembrandt", "1642", "Rijksmuseum, Amsterdam"], ["Et in Arcadia ego", "Nicolas Poussin", "vers 1638", "Musée du Louvre"]]), wall: "#5f1c2c" },
+  { ...M("e-xix", "era", "Long XIXe siècle", 1780, 1905, "Art du XIXe siècle",
+    "Des révolutions à la Belle Époque, les artistes s’émancipent peu à peu du Salon, de l’Académie et des sujets nobles.",
+    ["Querelles successives : néoclassiques, romantiques, réalistes", "Tube de peinture et peinture sur le motif", "Salon contesté et naissance du couple marchand-critique"],
+    ["David", "Delacroix", "Courbet", "Manet", "Monet", "Cézanne"],
+    [["La Liberté guidant le peuple", "Eugène Delacroix", "1830", "Musée du Louvre"], ["Un enterrement à Ornans", "Gustave Courbet", "1849-1850", "Musée d’Orsay"], ["La Nuit étoilée", "Vincent van Gogh", "1889", "MoMA, New York"]]), wall: "#2b4059" },
+  { ...M("e-modernites", "era", "Avant-gardes et modernité", 1905, 1960, "Art moderne",
+    "En quelques décennies, les avant-gardes rompent avec l’imitation du réel : couleur libre, formes éclatées, abstraction, hasard et inconscient.",
+    ["Succession rapide de groupes et de manifestes", "Les deux guerres déplacent le centre de Paris à New York", "L’objet et l’idée peuvent devenir œuvre"],
+    ["Picasso", "Matisse", "Kandinsky", "Duchamp", "Mondrian", "Pollock"],
+    [["Les Demoiselles d’Avignon", "Pablo Picasso", "1907", "MoMA, New York"], ["Fontaine", "Marcel Duchamp", "1917", "Original perdu, répliques en musées"], ["Guernica", "Pablo Picasso", "1937", "Musée Reina Sofía, Madrid"]]), wall: "#42452c" },
+  { ...M("e-contemporain", "era", "Art contemporain", 1960, 2030, "Art contemporain",
+    "Depuis les années 1960, plus de style dominant : installation, performance, vidéo, numérique, dans un monde de l’art devenu global.",
+    ["L’idée et le contexte comptent autant que l’objet", "Sortie de l’atelier : paysage, rue, corps, écran", "Marché, foires et biennales structurent la reconnaissance"],
+    ["Andy Warhol", "Joseph Beuys", "Louise Bourgeois", "Gerhard Richter", "Jeff Koons", "Yayoi Kusama"],
+    [["Campbell’s Soup Cans", "Andy Warhol", "1962", "MoMA, New York"], ["Maman", "Louise Bourgeois", "1999", "Plusieurs exemplaires dans le monde"], ["Sunflower Seeds", "Ai Weiwei", "2010", "Tate Modern, Londres"]]), wall: "#2c2d35" },
+];
+
+const MOVEMENTS = [
+  /* Préhistoire et Antiquité */
+  M("paleo", "w", "Art pariétal paléolithique", -36000, -10000, "Art pariétal",
+    "Grottes peintes et gravées d’Europe, d’une maîtrise qui contredit l’idée d’un art primitif.",
+    ["Utilisation du relief de la roche pour modeler les animaux", "Pigments : ocres et charbon", "Deux sites majeurs français : Chauvet et Lascaux"],
+    ["Artistes anonymes"], [["Panneau des lions, grotte Chauvet", "Anonyme", "vers 36 000 av. J.-C.", "Ardèche"], ["Bison de la grotte d’Altamira", "Anonyme", "vers 15 000 av. J.-C.", "Cantabrie"], ["Dame de Brassempouy", "Anonyme", "vers 23 000 av. J.-C.", "Musée d’archéologie nationale, Saint-Germain-en-Laye"]]),
+  M("megalithes", "w", "Néolithique et mégalithes", -6000, -2000, "Mégalithisme",
+    "Avec l’agriculture, les sociétés sédentaires érigent de grands monuments de pierre liés aux morts et au ciel.",
+    ["Menhirs, dolmens, cercles de pierre", "Travail collectif à grande échelle", "Motifs géométriques gravés"],
+    ["Bâtisseurs anonymes"], [["Stonehenge", "Anonyme", "vers 3000-2000 av. J.-C.", "Wiltshire"], ["Alignements de Carnac", "Anonyme", "vers 4500-3000 av. J.-C.", "Morbihan"], ["Tumulus de Gavrinis", "Anonyme", "vers 3500 av. J.-C.", "Morbihan"]]),
+  M("mesopotamie", "w", "Mésopotamie", -3500, -539, "Art de la Mésopotamie",
+    "Sumer, Akkad, Babylone et l’Assyrie font de l’image un instrument du pouvoir royal et du droit.",
+    ["Reliefs narratifs célébrant la victoire du roi", "Brique émaillée et sceaux-cylindres", "Grands yeux incrustés des statues d’orants"],
+    ["Ateliers royaux anonymes"], [["Code de Hammurabi", "Anonyme", "vers 1750 av. J.-C.", "Musée du Louvre"], ["Étendard d’Ur", "Anonyme", "vers 2500 av. J.-C.", "British Museum, Londres"], ["Porte d’Ishtar", "Anonyme", "vers 575 av. J.-C.", "Pergamonmuseum, Berlin"]]),
+  M("egypte", "w", "Égypte ancienne", -3100, -30, "Art de l'Égypte antique",
+    "Trois millénaires d’une remarquable stabilité stylistique, au service de l’éternité du pharaon et des défunts.",
+    ["Figure humaine : tête et jambes de profil, torse de face", "Taille des personnages selon leur rang", "Parenthèse naturaliste de la période amarnienne"],
+    ["Thoutmôsis", "Imhotep"], [["Scribe accroupi", "Anonyme", "vers 2500 av. J.-C.", "Musée du Louvre"], ["Buste de Néfertiti", "Thoutmôsis", "vers 1345 av. J.-C.", "Neues Museum, Berlin"], ["Masque de Toutânkhamon", "Anonyme", "vers 1323 av. J.-C.", "Grand Musée égyptien, Gizeh"]]),
+  M("archaique", "w", "Grèce archaïque", -800, -480, "Art grec archaïque",
+    "La Grèce adopte la grande statuaire de pierre et cherche progressivement à rendre le corps vivant.",
+    ["Kouroi et korès, statues frontales", "Fameux sourire archaïque", "Céramique à figures noires puis rouges"],
+    ["Exékias", "Euphronios"], [["Dame d’Auxerre", "Anonyme", "vers 630 av. J.-C.", "Musée du Louvre"], ["Moscophore", "Anonyme", "vers 560 av. J.-C.", "Musée de l’Acropole, Athènes"], ["Kouros de Kroisos", "Anonyme", "vers 530 av. J.-C.", "Musée national archéologique, Athènes"]]),
+  M("etrusque", "w", "Art étrusque", -800, -100, "Art étrusque",
+    "En Italie centrale, un art funéraire vivant et coloré, nourri d’influences grecques, qui marquera Rome.",
+    ["Tombes peintes de Tarquinia", "Maîtrise de la terre cuite et du bronze", "Banquets et scènes de vie joyeuses"],
+    ["Vulca de Véies"], [["Sarcophage des Époux", "Anonyme", "vers 520 av. J.-C.", "Musée du Louvre"], ["Apollon de Véies", "Anonyme", "vers 510 av. J.-C.", "Villa Giulia, Rome"], ["Chimère d’Arezzo", "Anonyme", "vers 400 av. J.-C.", "Musée archéologique, Florence"]]),
+  M("classique-grec", "w", "Grèce classique", -480, -323, "Art grec classique",
+    "Le Ve siècle athénien définit l’idéal occidental : harmonie, proportion et mouvement maîtrisé.",
+    ["Canon de Polyclète", "Contrapposto : déhanchement naturel", "Le Parthénon, sommet du programme de Périclès"],
+    ["Phidias", "Polyclète", "Myron", "Praxitèle", "Lysippe"], [["Frise du Parthénon", "Phidias et atelier", "447-432 av. J.-C.", "British Museum et musée de l’Acropole"], ["Discobole", "Myron", "vers 450 av. J.-C.", "Connu par des copies romaines"], ["Doryphore", "Polyclète", "vers 440 av. J.-C.", "Connu par des copies romaines"]]),
+  M("hellenistique", "w", "Art hellénistique", -323, -31, "Art hellénistique",
+    "Après Alexandre, l’art grec gagne l’Orient et se fait théâtral : torsions, émotions, réalisme.",
+    ["Pathos et mouvement spectaculaire", "Intérêt pour la vieillesse et la souffrance", "Centres : Pergame, Alexandrie, Rhodes"],
+    ["Agésandre", "Athénodore", "Polydore"], [["Victoire de Samothrace", "Anonyme", "vers 190 av. J.-C.", "Musée du Louvre"], ["Vénus de Milo", "Anonyme", "vers 130-100 av. J.-C.", "Musée du Louvre"], ["Laocoon", "Agésandre, Athénodore, Polydore", "vers 40 av. J.-C.", "Musées du Vatican"]]),
+  M("rome", "w", "Rome antique", -509, 476, "Art de la Rome antique",
+    "Rome copie la Grèce, mais innove dans le portrait réaliste, le relief historique et les grandes architectures de béton.",
+    ["Portrait individualisé du citoyen et de l’empereur", "Quatre styles de la peinture pompéienne", "Art de propagande à l’échelle de l’Empire"],
+    ["Apollodore de Damas", "Vitruve"], [["Auguste de Prima Porta", "Anonyme", "vers 20", "Musées du Vatican"], ["Fresques de la villa des Mystères", "Anonyme", "vers 60 av. J.-C.", "Pompéi"], ["Statue équestre de Marc Aurèle", "Anonyme", "vers 175", "Musées du Capitole, Rome"]]),
+  M("byzantin", "w", "Art byzantin", 330, 1453, "Art byzantin",
+    "Dans l’Empire romain d’Orient, l’image devient sacrée : mosaïques d’or et icônes qui ouvrent sur le divin.",
+    ["Fonds d’or et frontalité", "Crise iconoclaste aux VIIIe et IXe siècles", "Héritage durable dans l’icône orthodoxe"],
+    ["Théophane le Grec", "Andreï Roublev"], [["Mosaïques de Justinien et Théodora", "Anonyme", "547", "San Vitale, Ravenne"], ["Sainte-Sophie", "Anthémius de Tralles et Isidore de Milet", "537", "Istanbul"], ["La Trinité", "Andreï Roublev", "vers 1411", "Galerie Tretiakov, Moscou"]]),
+
+  /* Moyen Âge */
+  M("carolingien", "w", "Art carolingien", 750, 900, "Art carolingien",
+    "Charlemagne veut faire renaître l’Empire : les ateliers palatins recopient les modèles antiques.",
+    ["Renaissance carolingienne de l’Antique", "Enluminure et ivoires de grande qualité", "Écriture caroline, ancêtre de nos minuscules"],
+    ["Godescalc", "Eudes de Metz"], [["Évangéliaire de Godescalc", "Godescalc", "781-783", "Bibliothèque nationale de France"], ["Chapelle palatine d’Aix", "Eudes de Metz", "vers 800", "Aix-la-Chapelle"], ["Psautier d’Utrecht", "Anonyme", "vers 830", "Bibliothèque de l’université d’Utrecht"]]),
+  M("roman", "w", "Art roman", 1000, 1200, "Art roman",
+    "L’Occident se couvre d’abbatiales de pierre, massives et sculptées, le long des routes de pèlerinage.",
+    ["Voûtes en berceau, murs épais, petites ouvertures", "Tympans sculptés du Jugement dernier", "Figures déformées pour s’adapter au cadre"],
+    ["Gislebertus", "Maître de Cabestany", "Wiligelmo"], [["Tapisserie de Bayeux", "Anonyme", "vers 1070", "Musée de la Tapisserie, Bayeux"], ["Tympan de Sainte-Foy de Conques", "Anonyme", "vers 1107-1125", "Conques"], ["Christ de Saint-Clément de Tahull", "Maître de Tahull", "1123", "MNAC, Barcelone"]]),
+  M("gothique", "w", "Art gothique", 1140, 1500, "Art gothique",
+    "Né en Île-de-France à Saint-Denis, l’art des cathédrales cherche la hauteur et la lumière.",
+    ["Croisée d’ogives et arcs-boutants libèrent les murs", "Le vitrail fait entrer une lumière théologique", "Sculpture de plus en plus humaine et naturaliste"],
+    ["Suger", "Villard de Honnecourt", "Pierre de Montreuil", "Claus Sluter"], [["Vitraux de la Sainte-Chapelle", "Anonyme", "vers 1248", "Paris"], ["Cathédrale Notre-Dame de Chartres", "Anonyme", "1194-1220", "Chartres"], ["Puits de Moïse", "Claus Sluter", "1395-1405", "Dijon"]]),
+  M("trecento", "w", "Trecento italien", 1280, 1420, "Trecento",
+    "En Toscane, la peinture sort de la tradition byzantine et commence à habiter l’espace et les émotions.",
+    ["Giotto donne du volume et de la gravité aux corps", "Rivalité entre Florence et Sienne", "Essor de la fresque et du retable"],
+    ["Cimabue", "Giotto", "Duccio", "Simone Martini", "Ambrogio Lorenzetti"], [["Fresques de la chapelle des Scrovegni", "Giotto", "vers 1305", "Padoue"], ["Maestà", "Duccio", "1308-1311", "Museo dell’Opera, Sienne"], ["Allégorie du Bon Gouvernement", "Ambrogio Lorenzetti", "1338-1339", "Palazzo Pubblico, Sienne"]]),
+  M("gothique-intl", "w", "Gothique international", 1370, 1430, "Gothique international",
+    "Style raffiné des cours européennes : lignes souples, tissus précieux, attention au détail.",
+    ["Circulation des artistes entre Paris, Prague, Milan", "Art de cour, élégant et courtois", "Naturalisme minutieux des détails"],
+    ["Frères de Limbourg", "Gentile da Fabriano", "Pisanello", "Melchior Broederlam"], [["Les Très Riches Heures du duc de Berry", "Frères de Limbourg", "vers 1411-1416", "Musée Condé, Chantilly"], ["L’Adoration des mages", "Gentile da Fabriano", "1423", "Galerie des Offices, Florence"], ["Diptyque Wilton", "Anonyme", "vers 1395", "National Gallery, Londres"]]),
+
+  /* Renaissance */
+  M("quattrocento", "w", "Première Renaissance", 1420, 1500, "Quattrocento",
+    "Florence invente la peinture moderne : espace mathématique, corps antiques, portrait profane.",
+    ["Brunelleschi formalise la perspective", "Masaccio applique ce nouvel espace à la peinture", "Mécénat des Médicis et culture néoplatonicienne"],
+    ["Masaccio", "Fra Angelico", "Piero della Francesca", "Botticelli", "Mantegna", "Donatello"], [["La Trinité", "Masaccio", "vers 1427", "Santa Maria Novella, Florence"], ["La Naissance de Vénus", "Botticelli", "vers 1485", "Galerie des Offices, Florence"], ["La Flagellation du Christ", "Piero della Francesca", "vers 1460", "Galleria Nazionale delle Marche, Urbino"]]),
+  M("flamands", "w", "Primitifs flamands", 1420, 1530, "Primitifs flamands",
+    "À Bruges, Gand et Bruxelles, la peinture à l’huile permet une précision et une lumière inédites.",
+    ["Perfectionnement de l’huile et des glacis", "Réalisme minutieux des objets et des matières", "Portraits et symboles cachés dans le quotidien"],
+    ["Jan van Eyck", "Rogier van der Weyden", "Hans Memling", "Robert Campin", "Hugo van der Goes"], [["Les Époux Arnolfini", "Jan van Eyck", "1434", "National Gallery, Londres"], ["L’Agneau mystique", "Hubert et Jan van Eyck", "1432", "Cathédrale Saint-Bavon, Gand"], ["La Descente de croix", "Rogier van der Weyden", "vers 1435", "Musée du Prado, Madrid"]]),
+  M("nordique", "w", "Renaissance nordique", 1490, 1580, "Renaissance nordique",
+    "L’Europe du Nord combine sa tradition du détail et les nouveautés italiennes, sur fond de Réforme.",
+    ["Dürer diffuse les idées par la gravure", "Réforme protestante et déclin de l’image religieuse", "Paysage et scènes paysannes prennent leur place"],
+    ["Albrecht Dürer", "Matthias Grünewald", "Hans Holbein le Jeune", "Lucas Cranach l’Ancien", "Pieter Bruegel l’Ancien", "Jérôme Bosch"], [["Retable d’Issenheim", "Matthias Grünewald", "1512-1516", "Musée Unterlinden, Colmar"], ["Les Ambassadeurs", "Hans Holbein le Jeune", "1533", "National Gallery, Londres"], ["Les Chasseurs dans la neige", "Pieter Bruegel l’Ancien", "1565", "Kunsthistorisches Museum, Vienne"]]),
+  M("venise", "w", "Renaissance vénitienne", 1475, 1590, "École vénitienne (peinture)",
+    "À Venise, la couleur et la lumière priment sur le dessin : c’est le débat du colorito contre le disegno florentin.",
+    ["Peinture sur toile et huile riche", "Sujets poétiques, paysages d’atmosphère", "Grand format et faste vénitien"],
+    ["Giovanni Bellini", "Giorgione", "Titien", "Véronèse", "Tintoret"], [["La Tempête", "Giorgione", "vers 1508", "Gallerie dell’Accademia, Venise"], ["Vénus d’Urbin", "Titien", "1538", "Galerie des Offices, Florence"], ["Les Noces de Cana", "Véronèse", "1563", "Musée du Louvre"]]),
+  M("haute-ren", "w", "Haute Renaissance", 1495, 1527, "Haute Renaissance",
+    "Trente ans d’apogée, entre Florence et la Rome des papes, avec Léonard, Michel-Ange et Raphaël.",
+    ["Équilibre monumental de la composition", "Sfumato de Léonard", "Fin symbolique avec le sac de Rome en 1527"],
+    ["Léonard de Vinci", "Michel-Ange", "Raphaël", "Bramante"], [["La Joconde", "Léonard de Vinci", "1503-1519", "Musée du Louvre"], ["Plafond de la chapelle Sixtine", "Michel-Ange", "1508-1512", "Vatican"], ["L’École d’Athènes", "Raphaël", "1509-1511", "Musées du Vatican"]]),
+  M("manierisme", "w", "Maniérisme", 1520, 1600, "Maniérisme",
+    "Après la perfection de la Renaissance, les artistes privilégient l’artifice, l’élongation et l’étrangeté.",
+    ["Corps allongés et poses serpentines", "Couleurs acides et espace instable", "Art savant destiné aux connaisseurs"],
+    ["Pontormo", "Parmesan", "Bronzino", "Le Greco", "Arcimboldo"], [["La Déposition", "Pontormo", "1528", "Santa Felicita, Florence"], ["La Madone au long cou", "Parmesan", "1535-1540", "Galerie des Offices, Florence"], ["L’Enterrement du comte d’Orgaz", "Le Greco", "1586-1588", "Santo Tomé, Tolède"]]),
+  M("fontainebleau", "w", "École de Fontainebleau", 1530, 1610, "École de Fontainebleau",
+    "François Ier fait venir des Italiens : le château devient un foyer d’un maniérisme français, sensuel et décoratif.",
+    ["Rosso et Primatice dirigent le chantier", "Mêlant stuc et fresque", "Nus allégoriques mystérieux"],
+    ["Rosso Fiorentino", "Primatice", "Jean Cousin", "François Clouet"], [["Galerie François Ier", "Rosso Fiorentino", "1533-1539", "Château de Fontainebleau"], ["Diane chasseresse", "École de Fontainebleau", "vers 1550", "Musée du Louvre"], ["Gabrielle d’Estrées et une de ses sœurs", "École de Fontainebleau", "vers 1594", "Musée du Louvre"]]),
+
+  /* Âge baroque et classique */
+  M("baroque", "w", "Baroque", 1600, 1750, "Art baroque",
+    "Né à Rome avec la Contre-Réforme, le baroque veut saisir le spectateur par le mouvement, la lumière et l’émotion.",
+    ["Diagonales et compositions dynamiques", "Fusion de l’architecture, de la peinture et de la sculpture", "Art de la foi et de l’absolutisme"],
+    ["Rubens", "Le Bernin", "Velázquez", "Borromini", "Pierre de Cortone"], [["L’Extase de sainte Thérèse", "Le Bernin", "1647-1652", "Santa Maria della Vittoria, Rome"], ["La Descente de croix", "Rubens", "1612-1614", "Cathédrale d’Anvers"], ["Les Ménines", "Velázquez", "1656", "Musée du Prado, Madrid"]]),
+  M("caravagisme", "w", "Caravagisme", 1600, 1650, "Caravagisme",
+    "L’exemple de Caravage se répand dans toute l’Europe : modèles populaires et lumière tranchée.",
+    ["Clair-obscur très contrasté, ou ténébrisme", "Modèles pris dans la rue", "Scènes de tripot et sujets sacrés crus"],
+    ["Caravage", "Artemisia Gentileschi", "Georges de La Tour", "Valentin de Boulogne", "Ribera"], [["La Vocation de saint Matthieu", "Caravage", "1599-1600", "San Luigi dei Francesi, Rome"], ["Judith décapitant Holopherne", "Artemisia Gentileschi", "vers 1620", "Galerie des Offices, Florence"], ["Le Tricheur à l’as de carreau", "Georges de La Tour", "vers 1635", "Musée du Louvre"]]),
+  M("or-neerlandais", "w", "Siècle d’or néerlandais", 1600, 1680, "Siècle d'or néerlandais",
+    "Dans la jeune république marchande et protestante, les bourgeois achètent portraits, paysages et natures mortes.",
+    ["Marché de l’art privé, spécialisation des peintres", "Peu de sujets religieux, beaucoup de vie quotidienne", "Vanités : méditations sur la mort et la richesse"],
+    ["Rembrandt", "Johannes Vermeer", "Frans Hals", "Jacob van Ruisdael", "Pieter de Hooch"], [["La Ronde de nuit", "Rembrandt", "1642", "Rijksmuseum, Amsterdam"], ["La Jeune Fille à la perle", "Johannes Vermeer", "vers 1665", "Mauritshuis, La Haye"], ["La Laitière", "Johannes Vermeer", "vers 1658", "Rijksmuseum, Amsterdam"]]),
+  M("classicisme", "w", "Classicisme français", 1630, 1700, "Classicisme",
+    "Sous Louis XIII et Louis XIV, la France oppose au baroque un art de la raison, de la clarté et de la mesure.",
+    ["Académie royale fondée en 1648", "Hiérarchie des genres : la peinture d’histoire au sommet", "Versailles, chef-d’œuvre de l’art monarchique"],
+    ["Nicolas Poussin", "Claude Lorrain", "Charles Le Brun", "Philippe de Champaigne", "Eustache Le Sueur"], [["Et in Arcadia ego", "Nicolas Poussin", "vers 1638", "Musée du Louvre"], ["Port de mer au soleil couchant", "Claude Lorrain", "1639", "Musée du Louvre"], ["Galerie des Glaces", "Charles Le Brun", "1678-1684", "Château de Versailles"]]),
+  M("rococo", "w", "Rococo", 1720, 1780, "Rococo",
+    "Après Louis XIV, l’aristocratie préfère ses salons : art léger, galant, tout en courbes et en pastels.",
+    ["Fête galante inventée par Watteau", "Couleurs claires et sensualité", "Arts décoratifs à l’honneur"],
+    ["Antoine Watteau", "François Boucher", "Jean-Honoré Fragonard", "Giambattista Tiepolo"], [["Pèlerinage à l’île de Cythère", "Antoine Watteau", "1717", "Musée du Louvre"], ["Diane sortant du bain", "François Boucher", "1742", "Musée du Louvre"], ["Les Hasards heureux de l’escarpolette", "Jean-Honoré Fragonard", "vers 1767", "Wallace Collection, Londres"]]),
+
+  /* XIXe siècle */
+  M("neoclassicisme", "w", "Néoclassicisme", 1760, 1830, "Néo-classicisme",
+    "Les fouilles de Pompéi et les Lumières ramènent la vertu antique, puis la Révolution en fait un langage politique.",
+    ["Ligne nette, composition en frise", "Winckelmann théorise l’idéal grec", "David, peintre de la Révolution et de Napoléon"],
+    ["Jacques-Louis David", "Ingres", "Antonio Canova", "Élisabeth Vigée Le Brun"], [["Le Serment des Horaces", "Jacques-Louis David", "1784", "Musée du Louvre"], ["La Mort de Marat", "Jacques-Louis David", "1793", "Musées royaux des Beaux-Arts, Bruxelles"], ["La Grande Odalisque", "Ingres", "1814", "Musée du Louvre"]]),
+  M("romantisme", "w", "Romantisme", 1790, 1860, "Romantisme",
+    "Contre la raison néoclassique, les peintres exaltent la passion, la nature sublime et l’histoire nationale.",
+    ["Primauté de la couleur et du geste", "Sublime : l’homme face à la nature", "Rivalité Delacroix contre Ingres"],
+    ["Eugène Delacroix", "Théodore Géricault", "Caspar David Friedrich", "J. M. W. Turner", "Francisco de Goya"], [["Le Radeau de la Méduse", "Théodore Géricault", "1818-1819", "Musée du Louvre"], ["La Liberté guidant le peuple", "Eugène Delacroix", "1830", "Musée du Louvre"], ["Le Voyageur contemplant une mer de nuages", "Caspar David Friedrich", "vers 1818", "Kunsthalle de Hambourg"]]),
+  M("barbizon", "w", "École de Barbizon", 1830, 1875, "École de Barbizon",
+    "Des peintres s’installent en forêt de Fontainebleau pour observer la nature sur le motif.",
+    ["Paysage pour lui-même, sans sujet noble", "Dignité du monde rural", "Passerelle vers l’impressionnisme"],
+    ["Théodore Rousseau", "Jean-François Millet", "Camille Corot", "Charles-François Daubigny"], [["L’Angélus", "Jean-François Millet", "1857-1859", "Musée d’Orsay"], ["Souvenir de Mortefontaine", "Camille Corot", "1864", "Musée du Louvre"]]),
+  M("realisme", "w", "Réalisme", 1840, 1880, "Réalisme (peinture)",
+    "Courbet revendique de peindre ce qu’il voit : ouvriers, paysans, enterrements, sur des formats réservés à l’histoire.",
+    ["Sujets contemporains et populaires", "Refus de l’idéalisation", "Pavillon du Réalisme, manifeste de Courbet en 1855"],
+    ["Gustave Courbet", "Jean-François Millet", "Honoré Daumier", "Ilia Répine"], [["Un enterrement à Ornans", "Gustave Courbet", "1849-1850", "Musée d’Orsay"], ["Des glaneuses", "Jean-François Millet", "1857", "Musée d’Orsay"], ["Les Haleurs de la Volga", "Ilia Répine", "1870-1873", "Musée russe, Saint-Pétersbourg"]]),
+  M("preraphaelites", "w", "Préraphaélites", 1848, 1900, "Préraphaélisme",
+    "Une confrérie britannique rejette l’art académique et prend pour modèle la peinture d’avant Raphaël.",
+    ["Couleurs pures et détail botanique", "Sujets médiévaux et littéraires", "Figure féminine fatale et mélancolique"],
+    ["John Everett Millais", "Dante Gabriel Rossetti", "William Holman Hunt", "Edward Burne-Jones"], [["Ophélie", "John Everett Millais", "1851-1852", "Tate Britain, Londres"], ["Beata Beatrix", "Dante Gabriel Rossetti", "vers 1870", "Tate Britain, Londres"]]),
+  M("academisme", "w", "Art académique", 1850, 1900, "Art académique",
+    "La peinture officielle triomphe au Salon, léchée et érudite, avant d’être moquée sous le nom d’art pompier.",
+    ["Fini lisse et dessin parfait", "Grands sujets mythologiques ou orientalistes", "Longtemps méprisé, réévalué depuis le musée d’Orsay"],
+    ["Alexandre Cabanel", "William Bouguereau", "Jean-Léon Gérôme", "Thomas Couture"], [["La Naissance de Vénus", "Alexandre Cabanel", "1863", "Musée d’Orsay"], ["La Naissance de Vénus", "William Bouguereau", "1879", "Musée d’Orsay"], ["Pollice Verso", "Jean-Léon Gérôme", "1872", "Phoenix Art Museum"]]),
+  M("impressionnisme", "w", "Impressionnisme", 1860, 1890, "Impressionnisme",
+    "Un groupe d’amis peint la lumière et la vie moderne, et expose hors du Salon à partir de 1874.",
+    ["Touche fragmentée, couleurs claires, ombres colorées", "Peinture en plein air sur le motif", "Huit expositions indépendantes de 1874 à 1886"],
+    ["Claude Monet", "Pierre-Auguste Renoir", "Edgar Degas", "Berthe Morisot", "Camille Pissarro", "Alfred Sisley"], [["Impression, soleil levant", "Claude Monet", "1872", "Musée Marmottan Monet, Paris"], ["Bal du moulin de la Galette", "Pierre-Auguste Renoir", "1876", "Musée d’Orsay"], ["Le Berceau", "Berthe Morisot", "1872", "Musée d’Orsay"]]),
+  M("symbolisme", "w", "Symbolisme", 1880, 1910, "Symbolisme (art)",
+    "En réaction au naturalisme, les artistes peignent le rêve, le mythe et l’au-delà des apparences.",
+    ["Primauté de l’idée sur le réel", "Femme fatale, mort, mysticisme", "Lien étroit avec la poésie de Mallarmé"],
+    ["Gustave Moreau", "Odilon Redon", "Arnold Böcklin", "Fernand Khnopff", "Pierre Puvis de Chavannes"], [["L’Apparition", "Gustave Moreau", "1876", "Musée d’Orsay"], ["L’Île des morts", "Arnold Böcklin", "1883", "Alte Nationalgalerie, Berlin"], ["Le Cyclope", "Odilon Redon", "vers 1914", "Musée Kröller-Müller, Otterlo"]]),
+  M("neoimpressionnisme", "w", "Néo-impressionnisme", 1884, 1910, "Néo-impressionnisme",
+    "Seurat donne à l’impressionnisme une méthode scientifique, avec la division de la couleur en points.",
+    ["Pointillisme, ou divisionnisme", "Théories optiques de Chevreul", "Compositions stables et construites"],
+    ["Georges Seurat", "Paul Signac", "Henri-Edmond Cross", "Maximilien Luce"], [["Un dimanche après-midi à l’île de la Grande Jatte", "Georges Seurat", "1884-1886", "Art Institute of Chicago"], ["Portrait de Félix Fénéon", "Paul Signac", "1890", "MoMA, New York"]]),
+  M("postimpressionnisme", "w", "Postimpressionnisme", 1886, 1905, "Postimpressionnisme",
+    "Des individualités fortes dépassent l’impressionnisme : expression, structure ou couleur symbolique.",
+    ["Cézanne cherche la structure, base du cubisme", "Van Gogh ouvre la voie à l’expressionnisme", "Gauguin simplifie les formes et la couleur"],
+    ["Paul Cézanne", "Vincent van Gogh", "Paul Gauguin", "Henri de Toulouse-Lautrec"], [["La Nuit étoilée", "Vincent van Gogh", "1889", "MoMA, New York"], ["Les Joueurs de cartes", "Paul Cézanne", "1890-1895", "Musée d’Orsay"], ["D’où venons-nous ? Que sommes-nous ? Où allons-nous ?", "Paul Gauguin", "1897-1898", "Museum of Fine Arts, Boston"]]),
+  M("nabis", "w", "Nabis", 1888, 1900, "Nabis",
+    "Inspirés par Gauguin, de jeunes peintres se nomment « prophètes » et font du tableau une surface décorative.",
+    ["Aplats de couleur et cernes", "Influence de l’estampe japonaise", "Intimisme et arts décoratifs"],
+    ["Paul Sérusier", "Pierre Bonnard", "Édouard Vuillard", "Maurice Denis", "Félix Vallotton"], [["Le Talisman", "Paul Sérusier", "1888", "Musée d’Orsay"], ["Le Corsage à carreaux", "Pierre Bonnard", "1892", "Musée d’Orsay"], ["Les Muses", "Maurice Denis", "1893", "Musée d’Orsay"]]),
+  M("art-nouveau", "w", "Art nouveau et Sécession", 1890, 1914, "Art nouveau",
+    "Style international qui unit les arts décoratifs et l’architecture autour de la ligne végétale.",
+    ["Courbe en coup de fouet inspirée de la nature", "Art total, du bâtiment à la cuillère", "Sécession de Vienne fondée en 1897"],
+    ["Gustav Klimt", "Alphonse Mucha", "Antoni Gaudí", "Hector Guimard", "Victor Horta", "Émile Gallé"], [["Le Baiser", "Gustav Klimt", "1907-1908", "Belvédère, Vienne"], ["Gismonda", "Alphonse Mucha", "1894", "Affiche"], ["Casa Batlló", "Antoni Gaudí", "1904-1906", "Barcelone"]]),
+
+  /* Avant-gardes */
+  M("ecole-paris", "w", "École de Paris", 1900, 1960, "École de Paris",
+    "Montparnasse et Montmartre attirent des artistes du monde entier, sans doctrine commune.",
+    ["Cosmopolitisme, nombreux artistes juifs d’Europe de l’Est", "La Ruche, cité d’artistes", "Figuration libre et expressive"],
+    ["Amedeo Modigliani", "Marc Chagall", "Chaïm Soutine", "Tsuguharu Foujita", "Constantin Brâncuși"], [["Moi et le village", "Marc Chagall", "1911", "MoMA, New York"], ["Nu couché", "Amedeo Modigliani", "1917-1918", "Collection privée"], ["Le Bœuf écorché", "Chaïm Soutine", "1925", "Musée de Grenoble"]]),
+  M("fauvisme", "w", "Fauvisme", 1905, 1910, "Fauvisme",
+    "Au Salon d’automne de 1905, un critique parle de « cage aux fauves » devant ces couleurs pures.",
+    ["Couleur libérée de la réalité", "Touche large, sans modelé", "Mouvement bref mais décisif"],
+    ["Henri Matisse", "André Derain", "Maurice de Vlaminck", "Georges Braque", "Raoul Dufy"], [["La Femme au chapeau", "Henri Matisse", "1905", "SFMOMA, San Francisco"], ["La Joie de vivre", "Henri Matisse", "1905-1906", "Barnes Foundation, Philadelphie"], ["Charing Cross Bridge", "André Derain", "1906", "Musée d’Orsay"]]),
+  M("expressionnisme", "w", "Expressionnisme", 1905, 1933, "Expressionnisme",
+    "En Europe du Nord, la forme se déforme pour dire l’angoisse : Die Brücke à Dresde, Der Blaue Reiter à Munich.",
+    ["Déformation et couleurs violentes", "Angoisse de la ville moderne et de la guerre", "Condamné par les nazis comme « art dégénéré »"],
+    ["Ernst Ludwig Kirchner", "Emil Nolde", "Franz Marc", "Egon Schiele", "Oskar Kokoschka", "Edvard Munch"], [["Le Cri", "Edvard Munch", "1893", "Nasjonalmuseet, Oslo"], ["Cheval bleu I", "Franz Marc", "1911", "Lenbachhaus, Munich"], ["La Fiancée du vent", "Oskar Kokoschka", "1913-1914", "Kunstmuseum, Bâle"]]),
+  M("cubisme", "w", "Cubisme", 1907, 1925, "Cubisme",
+    "Picasso et Braque brisent la perspective pour montrer un objet sous plusieurs angles à la fois.",
+    ["Cubisme analytique, puis synthétique avec le collage", "Héritage de Cézanne et des arts africains", "Rupture majeure avec l’espace de la Renaissance"],
+    ["Pablo Picasso", "Georges Braque", "Juan Gris", "Fernand Léger"], [["Les Demoiselles d’Avignon", "Pablo Picasso", "1907", "MoMA, New York"], ["Portrait d’Ambroise Vollard", "Pablo Picasso", "1910", "Musée Pouchkine, Moscou"], ["Le Portugais", "Georges Braque", "1911", "Kunstmuseum, Bâle"]]),
+  M("futurisme", "w", "Futurisme", 1909, 1944, "Futurisme",
+    "Lancé à la une du Figaro par Marinetti, ce mouvement italien célèbre vitesse, machine et rupture avec le passé.",
+    ["Représentation du mouvement décomposé", "Culte de la modernité et de la guerre", "Liens ambigus avec le fascisme"],
+    ["Umberto Boccioni", "Giacomo Balla", "Gino Severini", "Filippo Tommaso Marinetti"], [["Formes uniques de la continuité dans l’espace", "Umberto Boccioni", "1913", "Plusieurs fontes, dont MoMA et Tate"], ["Dynamisme d’un chien en laisse", "Giacomo Balla", "1912", "Buffalo AKG Art Museum"]]),
+  M("abstraction", "w", "Art abstrait", 1910, 1960, "Art abstrait",
+    "Autour de 1910, plusieurs artistes abandonnent toute référence au monde visible.",
+    ["Kandinsky : la couleur comme musique", "Mondrian : géométrie et ordre universel", "Malevitch : suprématisme et Carré noir"],
+    ["Vassily Kandinsky", "Piet Mondrian", "Kasimir Malevitch", "Robert Delaunay", "Sonia Delaunay", "Hilma af Klint"], [["Composition VII", "Vassily Kandinsky", "1913", "Galerie Tretiakov, Moscou"], ["Carré noir", "Kasimir Malevitch", "1915", "Galerie Tretiakov, Moscou"], ["Composition II en rouge, bleu et jaune", "Piet Mondrian", "1930", "Kunsthaus, Zurich"]]),
+  M("constructivisme", "w", "Constructivisme", 1913, 1935, "Constructivisme (art)",
+    "En Russie révolutionnaire, l’art descend dans la vie : affiches, design, architecture au service de la société.",
+    ["Matériaux industriels, formes géométriques", "L’artiste-ingénieur", "Fin brutale avec le réalisme socialiste"],
+    ["Vladimir Tatline", "Alexandre Rodtchenko", "El Lissitzky", "Lioubov Popova", "Varvara Stepanova"], [["Monument à la Troisième Internationale", "Vladimir Tatline", "1919-1920", "Maquette, jamais construit"], ["Battez les Blancs avec le coin rouge", "El Lissitzky", "1919", "Affiche"]]),
+  M("dada", "w", "Dada", 1916, 1924, "Dada",
+    "Né à Zurich en pleine guerre, Dada tourne en dérision la raison et l’art lui-même.",
+    ["Cabaret Voltaire, 1916", "Hasard, collage, photomontage", "Le ready-made : l’objet choisi devient œuvre"],
+    ["Marcel Duchamp", "Tristan Tzara", "Hannah Höch", "Francis Picabia", "Jean Arp", "Man Ray"], [["Fontaine", "Marcel Duchamp", "1917", "Original perdu, répliques en musées"], ["Coupe au couteau de cuisine", "Hannah Höch", "1919-1920", "Nationalgalerie, Berlin"], ["L’Œil cacodylate", "Francis Picabia", "1921", "Centre Pompidou"]]),
+  M("destijl", "w", "De Stijl", 1917, 1931, "De Stijl",
+    "Aux Pays-Bas, une revue défend une harmonie universelle réduite à l’orthogonale et aux couleurs primaires.",
+    ["Néoplasticisme de Mondrian", "Lignes droites et trois couleurs primaires", "Influence décisive sur le design et l’architecture"],
+    ["Piet Mondrian", "Theo van Doesburg", "Gerrit Rietveld", "Bart van der Leck"], [["Chaise rouge et bleue", "Gerrit Rietveld", "vers 1918", "Stedelijk Museum, Amsterdam"], ["Maison Schröder", "Gerrit Rietveld", "1924", "Utrecht"], ["Contre-composition V", "Theo van Doesburg", "1924", "Stedelijk Museum, Amsterdam"]]),
+  M("bauhaus", "w", "Bauhaus", 1919, 1933, "Bauhaus",
+    "École fondée par Gropius à Weimar pour réunir art et artisanat, et concevoir le monde industriel.",
+    ["La forme suit la fonction", "Enseignement partagé entre peintres et artisans", "Fermée sous la pression nazie en 1933"],
+    ["Walter Gropius", "Paul Klee", "Vassily Kandinsky", "László Moholy-Nagy", "Marcel Breuer", "Anni Albers"], [["Bâtiment du Bauhaus", "Walter Gropius", "1925-1926", "Dessau"], ["Fauteuil Wassily", "Marcel Breuer", "1925-1926", "Design"], ["Senecio", "Paul Klee", "1922", "Kunstmuseum, Bâle"]]),
+  M("artdeco", "w", "Art déco", 1920, 1940, "Art déco",
+    "Consacré par l’exposition de Paris en 1925, ce style géométrique et luxueux marque les paquebots et les gratte-ciel.",
+    ["Géométrie élégante, matériaux précieux", "Exposition internationale de 1925", "Style de la modernité mondaine"],
+    ["Tamara de Lempicka", "Jacques-Émile Ruhlmann", "Cassandre", "René Lalique"], [["Autoportrait (Tamara à la Bugatti verte)", "Tamara de Lempicka", "1929", "Collection privée"], ["Affiche Normandie", "Cassandre", "1935", "Affiche"], ["Chrysler Building", "William Van Alen", "1930", "New York"]]),
+  M("nouvelle-objectivite", "w", "Nouvelle Objectivité", 1920, 1933, "Nouvelle Objectivité",
+    "L’Allemagne de Weimar se regarde sans complaisance : portrait acide d’une société traumatisée.",
+    ["Retour à une figuration froide et précise", "Satire de la bourgeoisie et de la guerre", "Exposition fondatrice à Mannheim en 1925"],
+    ["Otto Dix", "George Grosz", "Max Beckmann", "Christian Schad"], [["La Guerre", "Otto Dix", "1929-1932", "Galerie Neue Meister, Dresde"], ["Les Piliers de la société", "George Grosz", "1926", "Nationalgalerie, Berlin"]]),
+  M("surrealisme", "w", "Surréalisme", 1924, 1966, "Surréalisme",
+    "Autour d’André Breton, l’art explore le rêve et l’inconscient à la lumière de Freud.",
+    ["Manifeste de Breton en 1924", "Écriture automatique, frottage, cadavre exquis", "Rencontres incongrues d’images"],
+    ["Salvador Dalí", "René Magritte", "Max Ernst", "Joan Miró", "Yves Tanguy", "Leonora Carrington"], [["La Persistance de la mémoire", "Salvador Dalí", "1931", "MoMA, New York"], ["La Trahison des images", "René Magritte", "1929", "LACMA, Los Angeles"], ["Le Carnaval d’Arlequin", "Joan Miró", "1924-1925", "Buffalo AKG Art Museum"]]),
+  M("expr-abstrait", "w", "Expressionnisme abstrait", 1943, 1965, "Expressionnisme abstrait",
+    "L’école de New York fait de l’Amérique le nouveau centre de l’art : grands formats et peinture comme acte.",
+    ["Action painting : geste et dripping", "Color field : plages de couleur méditatives", "Critique de Clement Greenberg"],
+    ["Jackson Pollock", "Mark Rothko", "Willem de Kooning", "Barnett Newman", "Lee Krasner", "Joan Mitchell"], [["Number 31", "Jackson Pollock", "1950", "MoMA, New York"], ["Woman I", "Willem de Kooning", "1950-1952", "MoMA, New York"], ["Vir Heroicus Sublimis", "Barnett Newman", "1950-1951", "MoMA, New York"]]),
+  M("informel", "w", "Art informel", 1945, 1965, "Art informel",
+    "En Europe d’après-guerre, une peinture de la matière et du geste répond au traumatisme.",
+    ["Matière épaisse, signes, gestes spontanés", "Abstraction lyrique en France", "Pendant européen de l’école de New York"],
+    ["Jean Fautrier", "Pierre Soulages", "Hans Hartung", "Georges Mathieu", "Wols", "Zao Wou-Ki"], [["Otages", "Jean Fautrier", "1943-1945", "Série, dont Centre Pompidou"], ["Brous de noix", "Pierre Soulages", "1946-1949", "Musée Soulages, Rodez"]]),
+  M("art-brut", "w", "Art brut", 1945, 1975, "Art brut",
+    "Dubuffet collecte les créations de personnes étrangères au milieu artistique : patients d’asile, autodidactes, solitaires.",
+    ["Notion forgée par Dubuffet en 1945", "Création hors des normes culturelles", "Collection de l’art brut à Lausanne"],
+    ["Jean Dubuffet", "Adolf Wölfli", "Aloïse Corbaz", "Henry Darger", "Augustin Lesage"], [["Fonds de la Collection de l’art brut", "Divers", "depuis 1945", "Lausanne"], ["Corps de dames", "Jean Dubuffet", "1950", "Série"]]),
+
+  /* Art contemporain */
+  M("pop", "w", "Pop art", 1955, 1975, "Pop art",
+    "Londres puis New York s’emparent de la publicité, des stars et de la bande dessinée.",
+    ["Images de la consommation de masse", "Sérigraphie et répétition", "Frontière effacée entre grand art et culture populaire"],
+    ["Andy Warhol", "Roy Lichtenstein", "Richard Hamilton", "Claes Oldenburg", "David Hockney"], [["Campbell’s Soup Cans", "Andy Warhol", "1962", "MoMA, New York"], ["Whaam!", "Roy Lichtenstein", "1963", "Tate Modern, Londres"], ["Just What Is It That Makes Today’s Homes So Different, So Appealing?", "Richard Hamilton", "1956", "Kunsthalle de Tübingen"]]),
+  M("opart", "w", "Op art et art cinétique", 1955, 1975, "Art optique",
+    "Illusions d’optique et sculptures en mouvement font du regard du spectateur le sujet de l’œuvre.",
+    ["Vibrations visuelles géométriques", "Exposition The Responsive Eye au MoMA en 1965", "Rayonnement de Vasarely"],
+    ["Victor Vasarely", "Bridget Riley", "Jesús Rafael Soto", "Yaacov Agam", "Carlos Cruz-Diez"], [["Vega-Nor", "Victor Vasarely", "1969", "Buffalo AKG Art Museum"], ["Movement in Squares", "Bridget Riley", "1961", "Arts Council Collection"]]),
+  M("nouveau-realisme", "w", "Nouveau réalisme", 1960, 1970, "Nouveau réalisme",
+    "Le critique Pierre Restany réunit à Paris des artistes qui s’approprient directement le réel.",
+    ["Déclaration du 27 octobre 1960", "Accumulations, compressions, affiches lacérées", "Pendant européen du pop art"],
+    ["Yves Klein", "Arman", "César", "Jean Tinguely", "Niki de Saint Phalle", "Raymond Hains"], [["Anthropométrie de l’époque bleue (ANT 82)", "Yves Klein", "1960", "Centre Pompidou"], ["Home, Sweet Home", "Arman", "1960", "Centre Pompidou"], ["Compression Ricard", "César", "1962", "Centre Pompidou"]]),
+  M("minimalisme", "w", "Art minimal", 1960, 1975, "Art minimal",
+    "Aux États-Unis, formes simples et matériaux industriels évacuent l’expression personnelle.",
+    ["Formes géométriques et sérielles", "Fabrication industrielle", "L’œuvre transforme l’espace où elle se trouve"],
+    ["Donald Judd", "Dan Flavin", "Carl Andre", "Sol LeWitt", "Agnes Martin"], [["Untitled (Stack)", "Donald Judd", "1967", "MoMA, New York"], ["Equivalent VIII", "Carl Andre", "1966", "Tate Modern, Londres"], ["Monument pour V. Tatline", "Dan Flavin", "à partir de 1964", "Plusieurs versions"]]),
+  M("video", "w", "Art vidéo et numérique", 1963, 2030, "Art numérique",
+    "Du téléviseur détourné à l’intelligence artificielle, les technologies deviennent un médium.",
+    ["Nam June Paik, pionnier de l’art vidéo", "Installations immersives", "NFT et IA relancent le débat sur l’auteur"],
+    ["Nam June Paik", "Bill Viola", "Refik Anadol", "teamLab", "Beeple"], [["TV Buddha", "Nam June Paik", "1974", "Stedelijk Museum, Amsterdam"], ["The Crossing", "Bill Viola", "1996", "Guggenheim, New York"], ["Unsupervised", "Refik Anadol", "2022", "MoMA, New York"]]),
+  M("conceptuel", "w", "Art conceptuel", 1965, 1985, "Art conceptuel",
+    "L’idée devient l’œuvre : langage, documents et protocoles remplacent l’objet d’art.",
+    ["Héritage direct de Duchamp", "Texte et photographie comme matériaux", "Critique du marché et de l’institution"],
+    ["Joseph Kosuth", "Sol LeWitt", "Lawrence Weiner", "On Kawara", "Daniel Buren"], [["One and Three Chairs", "Joseph Kosuth", "1965", "MoMA, New York"], ["Date Paintings", "On Kawara", "1966-2013", "Série"]]),
+  M("land-art", "w", "Land art", 1967, 1985, "Land art",
+    "Des artistes quittent la galerie pour sculpter le paysage, avec des œuvres souvent éphémères.",
+    ["Interventions dans la nature", "Œuvres connues par la photographie", "Rapport au temps et à l’érosion"],
+    ["Robert Smithson", "Walter De Maria", "Michael Heizer", "Richard Long", "Christo et Jeanne-Claude"], [["Spiral Jetty", "Robert Smithson", "1970", "Grand Lac Salé, Utah"], ["The Lightning Field", "Walter De Maria", "1977", "Nouveau-Mexique"], ["Le Pont-Neuf empaqueté", "Christo et Jeanne-Claude", "1985", "Paris"]]),
+  M("arte-povera", "w", "Arte povera", 1967, 1980, "Arte povera",
+    "En Italie, le critique Germano Celant réunit des artistes qui utilisent des matériaux pauvres et vivants.",
+    ["Terre, branches, chiffons, néon", "Refus de la société de consommation", "Énergie de la matière"],
+    ["Michelangelo Pistoletto", "Mario Merz", "Jannis Kounellis", "Giuseppe Penone", "Alighiero Boetti"], [["Vénus aux chiffons", "Michelangelo Pistoletto", "1967", "Plusieurs versions"], ["Igloo di Giap", "Mario Merz", "1968", "Centre Pompidou"], ["Sans titre (12 chevaux)", "Jannis Kounellis", "1969", "Galleria L’Attico, Rome"]]),
+  M("street-art", "w", "Street art", 1970, 2030, "Art urbain",
+    "Du graffiti new-yorkais aux pochoirs mondialisés, la rue devient un lieu d’exposition.",
+    ["Naissance dans le métro de New York", "Entrée progressive au musée et aux enchères", "Œuvres souvent illégales et éphémères"],
+    ["Keith Haring", "Jean-Michel Basquiat", "Banksy", "Ernest Pignon-Ernest", "JR", "Invader"], [["Tuttomondo", "Keith Haring", "1989", "Pise"], ["Love Is in the Bin", "Banksy", "2018", "Staatsgalerie, Stuttgart"]]),
+  M("neoexpr", "w", "Néo-expressionnisme", 1975, 1990, "Néo-expressionnisme",
+    "Après l’art conceptuel, la peinture figurative revient en force, avec violence et émotion.",
+    ["Retour de la toile et du geste", "Allemands face à la mémoire de leur histoire", "Boom du marché dans les années 1980"],
+    ["Georg Baselitz", "Anselm Kiefer", "Jean-Michel Basquiat", "Julian Schnabel"], [["La Grande Nuit à l’eau", "Georg Baselitz", "1962-1963", "Museum Ludwig, Cologne"], ["Sulamith", "Anselm Kiefer", "1983", "The Broad, Los Angeles"], ["Untitled (Skull)", "Jean-Michel Basquiat", "1981", "The Broad, Los Angeles"]]),
+  M("art-global", "w", "Scène mondialisée", 1985, 2030, "Art contemporain",
+    "Biennales, méga-galeries et fondations privées façonnent une scène internationale et spectaculaire.",
+    ["Multiplication des biennales et foires", "Artistes-entrepreneurs et grandes productions", "Décentrement vers l’Afrique, l’Asie, l’Amérique latine"],
+    ["Damien Hirst", "Jeff Koons", "Yayoi Kusama", "Ai Weiwei", "Tracey Emin", "El Anatsui"], [["L’Impossibilité physique de la mort dans l’esprit d’un vivant", "Damien Hirst", "1991", "Collection privée"], ["My Bed", "Tracey Emin", "1998", "Prêt à la Tate"], ["Balloon Dog", "Jeff Koons", "1994-2000", "Série de cinq versions"]]),
+
+  /* Repères mondiaux */
+  M("olmeques", "m", "Olmèques", -1500, -400, "Olmèques",
+    "Première grande civilisation de Mésoamérique, célèbre pour ses têtes monumentales de basalte.",
+    ["Têtes colossales à traits individualisés", "Travail de la jade", "Influence sur les cultures ultérieures"],
+    ["Sculpteurs anonymes"], [["Tête colossale de San Lorenzo", "Anonyme", "vers 1200-900 av. J.-C.", "Veracruz"]]),
+  M("chine-antique", "m", "Chine ancienne", -1600, 220, "Art chinois",
+    "Des bronzes rituels Shang à l’armée de terre cuite, l’art sert les ancêtres et l’empire.",
+    ["Bronzes rituels à masque taotie", "Jades funéraires", "Mausolée du Premier Empereur"],
+    ["Artisans anonymes"], [["Armée de terre cuite", "Anonyme", "vers 210 av. J.-C.", "Xi’an"], ["Cheval volant de Gansu", "Anonyme", "IIe siècle", "Musée provincial du Gansu"]]),
+  M("nok", "m", "Culture Nok", -900, 200, "Culture Nok",
+    "Dans l’actuel Nigeria, les plus anciennes sculptures figuratives en terre cuite connues d’Afrique subsaharienne.",
+    ["Yeux triangulaires percés", "Coiffures élaborées", "Pièces trouvées en contexte minier"],
+    ["Sculpteurs anonymes"], [["Têtes en terre cuite Nok", "Anonyme", "entre 500 av. J.-C. et 200", "Musée national de Lagos et musée du quai Branly"]]),
+  M("inde-ancienne", "m", "Inde bouddhique et hindoue", -300, 1200, "Art indien",
+    "Grands sanctuaires sculptés et grottes peintes, du stûpa bouddhique aux temples hindous.",
+    ["Naissance de l’image du Bouddha", "Art gréco-bouddhique du Gandhara", "Bronzes Chola de Shiva dansant"],
+    ["Sculpteurs anonymes"], [["Peintures d’Ajantâ", "Anonyme", "vers 480", "Maharashtra"], ["Temples de Khajurâho", "Anonyme", "vers 950-1050", "Madhya Pradesh"], ["Shiva Nataraja", "Atelier Chola", "XIe siècle", "Musée Guimet et autres"]]),
+  M("maya", "m", "Art maya", 250, 900, "Art maya",
+    "Cités-États aux pyramides ornées de reliefs, de peintures et d’une écriture glyphique.",
+    ["Stèles et linteaux royaux", "Écriture hiéroglyphique élaborée", "Fresques de Bonampak"],
+    ["Scribes et sculpteurs anonymes"], [["Linteaux de Yaxchilán", "Anonyme", "vers 725", "British Museum, Londres"], ["Fresques de Bonampak", "Anonyme", "vers 790", "Chiapas"]]),
+  M("chine-tang-song", "m", "Peinture Tang et Song", 618, 1279, "Peinture chinoise",
+    "La Chine fait du paysage à l’encre un art majeur, nourri de poésie et de philosophie.",
+    ["Grand paysage monumental Song", "Peinture de lettrés", "Unité de la peinture, de la calligraphie et de la poésie"],
+    ["Fan Kuan", "Guo Xi", "Zhang Zeduan", "Empereur Huizong"], [["Voyageurs parmi monts et torrents", "Fan Kuan", "vers 1000", "Musée national du Palais, Taipei"], ["Début du printemps", "Guo Xi", "1072", "Musée national du Palais, Taipei"], ["Le Long de la rivière pendant la fête de Qingming", "Zhang Zeduan", "XIIe siècle", "Musée du Palais, Pékin"]]),
+  M("islam", "m", "Arts de l’Islam", 661, 1800, "Art islamique",
+    "De l’Espagne à l’Inde, un art de l’ornement, de la calligraphie et de la lumière, avec la miniature persane.",
+    ["Arabesque, géométrie, calligraphie", "Figuration limitée dans le lieu de culte", "Miniature persane à son apogée avec Behzad"],
+    ["Behzad", "Sinan", "Reza Abbassi"], [["Dôme du Rocher", "Anonyme", "691", "Jérusalem"], ["Alhambra", "Anonyme", "XIVe siècle", "Grenade"], ["Baptistère de Saint Louis", "Muhammad ibn al-Zayn", "vers 1320-1340", "Musée du Louvre"]]),
+  M("japon-classique", "m", "Japon classique", 794, 1670, "Art japonais",
+    "De la cour de Heian aux paravents dorés Kanō, un art raffiné où naît un style proprement japonais.",
+    ["Rouleaux narratifs, ou emaki", "Lavis d’encre lié au zen", "Paravents dorés de l’époque Momoyama"],
+    ["Sesshū", "Kanō Eitoku", "Hasegawa Tōhaku", "Tawaraya Sōtatsu"], [["Rouleaux du Dit du Genji", "Anonyme", "XIIe siècle", "Musée d’art Tokugawa, Nagoya"], ["Forêt de pins", "Hasegawa Tōhaku", "vers 1595", "Musée national de Tokyo"]]),
+  M("khmer", "m", "Art khmer", 802, 1431, "Art khmer",
+    "L’empire d’Angkor bâtit d’immenses temples-montagnes couverts de bas-reliefs.",
+    ["Temple-montagne, image du mont Meru", "Kilomètres de bas-reliefs", "Sourire apaisé des visages du Bayon"],
+    ["Sculpteurs anonymes"], [["Angkor Vat", "Anonyme", "XIIe siècle", "Siem Reap"], ["Tours à visages du Bayon", "Anonyme", "vers 1200", "Angkor Thom"], ["Banteay Srei", "Anonyme", "967", "Cambodge"]]),
+  M("rapanui", "m", "Rapa Nui", 1100, 1700, "Moaï",
+    "Sur l’île de Pâques, des statues monumentales honorent les ancêtres et protègent les clans.",
+    ["Moaï taillés dans le tuf volcanique", "Placés sur des plateformes, ou ahu", "Regard tourné vers l’intérieur de l’île"],
+    ["Sculpteurs anonymes"], [["Hoa Hakananai’a", "Anonyme", "vers 1200", "British Museum, Londres"], ["Moaï d’Ahu Tongariki", "Anonyme", "vers 1250-1500", "Île de Pâques"]]),
+  M("benin", "m", "Ifé et royaume du Bénin", 1100, 1897, "Art du Bénin",
+    "Bronzes et ivoires de cour d’une grande virtuosité, pillés en 1897 et au cœur des débats sur les restitutions.",
+    ["Naturalisme des têtes d’Ifé", "Plaques de bronze du palais d’Oba", "Restitutions en cours au Nigeria"],
+    ["Fondeurs de la guilde Igun Eronmwon"], [["Têtes d’Ifé", "Anonyme", "XIVe siècle", "Musée d’Ifé"], ["Masque de la reine Idia", "Anonyme", "XVIe siècle", "British Museum, Londres"], ["Plaques du palais de Bénin", "Anonyme", "XVIe siècle", "British Museum, Londres"]]),
+  M("yuan-ming-qing", "m", "Chine Yuan, Ming, Qing", 1279, 1912, "Peinture chinoise",
+    "La peinture de lettrés s’impose, puis les individualistes du XVIIe siècle la renouvellent librement.",
+    ["Peintres lettrés retirés de la vie publique", "Porcelaine bleu et blanc exportée dans le monde", "Excentriques de la fin des Ming"],
+    ["Huang Gongwang", "Shen Zhou", "Dong Qichang", "Bada Shanren", "Shitao"], [["Séjour dans les monts Fuchun", "Huang Gongwang", "1350", "Musée national du Palais, Taipei"], ["La Montagne Lu", "Shen Zhou", "1467", "Musée national du Palais, Taipei"]]),
+  M("azteque-inca", "m", "Aztèques et Incas", 1300, 1532, "Art précolombien",
+    "Derniers grands empires américains avant la conquête espagnole, architecture et sculpture monumentales.",
+    ["Sculpture religieuse aztèque massive", "Maçonnerie inca sans mortier", "Orfèvrerie et textiles andins"],
+    ["Artisans anonymes"], [["Pierre du Soleil", "Anonyme", "vers 1500", "Musée national d’anthropologie, Mexico"], ["Machu Picchu", "Anonyme", "vers 1450", "Pérou"]]),
+  M("moghol", "m", "Miniature moghole", 1526, 1857, "Peinture moghole",
+    "Les empereurs moghols font se rencontrer traditions persanes, indiennes et européennes.",
+    ["Ateliers impériaux d’Akbar et Jahangir", "Portrait et nature observés", "Taj Mahal, sommet architectural"],
+    ["Basawan", "Bichitr", "Mansur", "Abu'l Hasan"], [["Taj Mahal", "Ustad Ahmad Lahori", "1632-1653", "Agra"], ["Jahangir préférant un soufi aux rois", "Bichitr", "vers 1620", "Freer Gallery, Washington"], ["Hamzanama", "Atelier d’Akbar", "vers 1562-1577", "Dispersé, dont MAK Vienne"]]),
+  M("ukiyoe", "m", "Ukiyo-e", 1670, 1900, "Ukiyo-e",
+    "Estampes de la ville d’Edo, le « monde flottant », qui fascineront les impressionnistes.",
+    ["Gravure sur bois en couleurs", "Courtisanes, acteurs, paysages", "Source du japonisme en Europe"],
+    ["Katsushika Hokusai", "Utagawa Hiroshige", "Kitagawa Utamaro", "Tōshūsai Sharaku"], [["La Grande Vague de Kanagawa", "Katsushika Hokusai", "vers 1831", "Estampe, plusieurs musées"], ["Cent vues d’Edo", "Utagawa Hiroshige", "1856-1858", "Estampes"]]),
+  M("muralisme", "m", "Muralisme mexicain", 1920, 1950, "Muralisme mexicain",
+    "Après la révolution, des fresques monumentales racontent l’histoire du Mexique au peuple.",
+    ["Art public et politique", "Commandes de l’État mexicain", "Frida Kahlo dans ce même milieu"],
+    ["Diego Rivera", "José Clemente Orozco", "David Alfaro Siqueiros", "Frida Kahlo"], [["Detroit Industry", "Diego Rivera", "1932-1933", "Detroit Institute of Arts"], ["Les Deux Frida", "Frida Kahlo", "1939", "Museo de Arte Moderno, Mexico"]]),
+  M("aborigene", "m", "Art aborigène", 1971, 2030, "Art aborigène",
+    "À Papunya, les motifs sacrés du Temps du Rêve passent de la terre à la toile.",
+    ["Mouvement de Papunya Tula en 1971", "Pointillés et cartographies sacrées", "Reconnaissance internationale"],
+    ["Clifford Possum Tjapaltjarri", "Emily Kame Kngwarreye", "Rover Thomas"], [["Earth’s Creation", "Emily Kame Kngwarreye", "1994", "Collection privée"]]),
+];
+
+const MAJORS = new Set(["egypte","classique-grec","rome","byzantin","roman","gothique","quattrocento","flamands","haute-ren","manierisme","baroque","or-neerlandais","classicisme","rococo","neoclassicisme","romantisme","realisme","impressionnisme","postimpressionnisme","symbolisme","art-nouveau","fauvisme","expressionnisme","cubisme","abstraction","dada","surrealisme","expr-abstrait","pop","minimalisme","conceptuel","art-global","islam","ukiyoe"]);
+
+"use strict";
+/* ========= Utilitaires ========= */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[’']/g, " ").toLowerCase().trim();
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fmtY = y => y < 0 ? `${Math.abs(y).toLocaleString("fr-FR")} av. J.-C.` : String(y);
+const fmtSpan = m => `${fmtY(m.s)} – ${m.e >= 2030 ? "aujourd’hui" : fmtY(m.e)}`;
+const ALL = [...ERAS, ...MOVEMENTS];
+const byId = Object.fromEntries(ALL.map(m => [m.id, m]));
+const wikiUrl = t => "https://fr.wikipedia.org/w/index.php?search=" + encodeURIComponent(t);
+function toast(t) { const e = $("#toast"); e.textContent = t; e.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove("on"), 3200); }
+
+/* Comprend : 1889, vers 1650, 1885-1890, 500 av. J.-C., -500, XVIIe, 17e siècle, début XXe */
+function parseYear(str) {
+  let s = norm(str); if (!s) return null;
+  const bc = /\b(av|avant|bc|bce)\b/.test(s);
+  const roman = r => { const v = { i: 1, v: 5, x: 10, l: 50, c: 100 }; let t = 0; for (let i = 0; i < r.length; i++) { const a = v[r[i]], b = v[r[i + 1]] || 0; t += a < b ? -a : a; } return t; };
+  let m = s.match(/\b([ivxlc]+|\d{1,2})\s*(?:e|eme|er)?\s*(?:siecle|s\.)/) || s.match(/(?:^|\s)([ivxlc]+)(?:e|eme|er)(?:\s|$)/) || s.match(/^(?:debut|fin|milieu)?\s*([ivxlc]+)$/);
+  if (m) {
+    const c = /^\d/.test(m[1]) ? +m[1] : roman(m[1]);
+    if (c >= 1 && c <= 21) {
+      let y = (c - 1) * 100 + 50;
+      if (/debut/.test(s)) y -= 35; if (/\bfin\b/.test(s)) y += 35;
+      return bc ? -y : y;
+    }
+  }
+  const nums = s.replace(/(\d)[\s.](\d{3})\b/g, "$1$2").match(/\d{1,5}/g);
+  if (!nums) return null;
+  let a = +nums[0], b = nums[1] ? +nums[1] : null;
+  if (b !== null && b < 100 && a >= 100) b = Math.floor(a / 100) * 100 + b;
+  let y = b !== null && b !== a && Math.abs(b - a) < 500 ? Math.round((a + b) / 2) : a;
+  if (bc || /^-|^−/.test(String(str).trim())) y = -y;
+  return clamp(y, -40000, 2030);
+}
+
+/* Propose les courants à partir de l'artiste (s'il est connu) et de l'année */
+function suggest(year, artist) {
+  const out = [], seen = new Set();
+  const na = norm(artist);
+  if (na.length > 2) for (const m of MOVEMENTS) {
+    const hit = m.a.some(x => { const n = norm(x); return n === na || n.endsWith(" " + na) || n.split(" ").includes(na) && na.length > 3; });
+    if (hit && (year == null || (year >= m.s - 40 && year <= m.e + 40))) { out.push(m); seen.add(m.id); }
+  }
+  if (year != null) {
+    const list = MOVEMENTS.filter(m => year >= m.s && year <= m.e && !seen.has(m.id)).map(m => {
+      const mid = (m.s + m.e) / 2, half = Math.max(1, (m.e - m.s) / 2);
+      return [Math.abs(year - mid) / half + (MAJORS.has(m.id) ? 0 : .55) + (m.tr === "m" ? .9 : 0), m];
+    }).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+    out.push(...list);
+  }
+  return out.slice(0, 5);
+}
+
+/* ========= Stockage local ========= */
+let idb;
+function openDb() {
+  return new Promise((ok, ko) => {
+    const r = indexedDB.open("cimaise", 1);
+    r.onupgradeneeded = () => { const d = r.result; for (const s of ["works", "photos", "visits", "notes", "wiki"]) d.createObjectStore(s, { keyPath: "id" }); };
+    r.onsuccess = () => { idb = r.result; ok(); }; r.onerror = () => ko(r.error);
+  });
+}
+const tx = (s, m, f) => new Promise((ok, ko) => { const t = idb.transaction(s, m), q = f(t.objectStore(s)); t.oncomplete = () => ok(q && q.result); t.onerror = () => ko(t.error); t.onabort = () => ko(t.error); });
+const dbAll = s => tx(s, "readonly", o => o.getAll());
+const dbGet = (s, id) => tx(s, "readonly", o => o.get(id));
+const dbPut = (s, v) => tx(s, "readwrite", o => o.put(v));
+const dbDel = (s, id) => tx(s, "readwrite", o => o.delete(id));
+let works = [], visits = [];
+const thumbUrls = new Map();
+const thumb = w => { if (!w.thumb) return ""; if (!thumbUrls.has(w.id)) thumbUrls.set(w.id, URL.createObjectURL(w.thumb)); return thumbUrls.get(w.id); };
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+/* ========= Échelle du temps : déformée pour donner plus de place aux périodes denses ========= */
+const ANCH = [[-40000, 0], [-10000, 60], [-3000, 130], [-800, 260], [0, 350], [500, 430], [1000, 520], [1300, 620], [1500, 760], [1700, 910], [1800, 1010], [1900, 1190], [1950, 1370], [2000, 1560], [2030, 1640]];
+const TOTAL = 1640;
+function toU(y) { y = clamp(y, -40000, 2030); for (let i = 1; i < ANCH.length; i++) if (y <= ANCH[i][0]) { const [a, ua] = ANCH[i - 1], [b, ub] = ANCH[i]; return ua + (y - a) / (b - a) * (ub - ua); } return TOTAL; }
+function toY(u) { u = clamp(u, 0, TOTAL); for (let i = 1; i < ANCH.length; i++) if (u <= ANCH[i][1]) { const [a, ua] = ANCH[i - 1], [b, ub] = ANCH[i]; return a + (u - ua) / (ub - ua) * (b - a); } return 2030; }
+
+/* Répartit des périodes qui se chevauchent : chaque barre prend la largeur que lui laisse sa période */
+function pack(items) {
+  const L = [...items].sort((a, b) => a.s - b.s || b.e - a.e);
+  const over = (a, b) => a.s < b.e && b.s < a.e;
+  for (const it of L) {
+    let c = 1;
+    for (const p of [it.s, ...L.filter(o => o.s > it.s && o.s < it.e).map(o => o.s)]) c = Math.max(c, L.filter(o => o.s <= p && p < o.e).length);
+    it.c = c;
+  }
+  const placed = [];
+  for (const it of L) {
+    const ov = placed.filter(o => over(o, it)).sort((a, b) => a.x - b.x);
+    const free = (x, w) => x + w <= 1.0001 && !ov.some(o => x < o.x + o.w - 1e-4 && o.x < x + w - 1e-4);
+    let w = 1 / it.c, x = [0, ...ov.map(o => o.x + o.w)].find(c => free(c, w));
+    if (x === undefined) {
+      let best = 0, bx = 0, cur = 0;
+      for (const o of ov) { if (o.x - cur > best) { best = o.x - cur; bx = cur; } cur = Math.max(cur, o.x + o.w); }
+      if (1 - cur > best) { best = 1 - cur; bx = cur; }
+      x = bx; w = best;
+    }
+    it.x = x; it.w = w; placed.push(it);
+  }
+  return placed;
+}
+
+/* ========= Frise ========= */
+const TL = { z: 1.6, top: 0, track: lsGet("track", "both"), v: 0, raf: 0, moved: false, lastYear: null };
+const AXIS = 58, WKW = 54;
+let tl, bars = [], rooms = [], ticks = [], line;
+function readY() { return Math.round(tl.clientHeight * .42); }
+function minZ() { return Math.max(.15, tl.clientHeight / TOTAL); }
+
+function buildTimeline() {
+  tl = $("#tl"); pack(MOVEMENTS.filter(m => m.tr === "w")); pack(MOVEMENTS.filter(m => m.tr === "m"));
+  rooms = ERAS.map(e => { const d = document.createElement("div"); d.className = "room"; d.style.background = e.wall; d.innerHTML = `<button class="room-name" data-m="${e.id}">${esc(e.n)}</button>`; tl.append(d); return { e, d, label: d.firstChild }; });
+  bars = MOVEMENTS.map(m => { const b = document.createElement("button"); b.className = "bar " + m.tr; b.dataset.m = m.id; b.dataset.l = ""; b.setAttribute("aria-label", `${m.n}, ${fmtSpan(m)}`); b.innerHTML = `<span>${esc(m.n)}</span>`; tl.append(b); return { m, b, s: b.firstChild, px0: m.n.length * 7.3, word: Math.max(...m.n.split(/[\s-]/).map(x => x.length)) * 7.6 }; });
+  line = document.createElement("div"); line.id = "line"; tl.append(line);
+  window.addEventListener("resize", () => { layoutBars(); clampTop(); schedule(); });
+  layoutBars();
+  const sv = lsGet("view", null);
+  if (sv) { TL.z = clamp(sv.z, minZ(), 16); TL.top = sv.u * TL.z - readY(); }
+  else { TL.z = 2; TL.top = toU(1500) * TL.z - readY(); }
+  clampTop(); bindGestures(); schedule();
+}
+function cols() {
+  const free = tl.clientWidth - AXIS - WKW, t = TL.track;
+  return t === "w" ? { wx: AXIS, ww: free, mx: 0, mw: 0 } : t === "m" ? { wx: 0, ww: 0, mx: AXIS, mw: free } : { wx: AXIS, ww: free * .7, mx: AXIS + free * .7 + 2, mw: free * .3 - 2 };
+}
+function layoutBars() {
+  const c = cols();
+  for (const o of bars) {
+    const on = o.m.tr === "w" ? c.ww : c.mw, base = o.m.tr === "w" ? c.wx : c.mx;
+    o.hidden = !on; o.b.style.display = on ? "" : "none";
+    o.px = base + o.m.x * on + 1; o.pw = Math.max(3, o.m.w * on - 2);
+    o.b.style.left = o.px + "px"; o.b.style.width = o.pw + "px";
+  }
+  line.style.top = readY() + "px";
+}
+function clampTop() { const r = readY(); TL.top = clamp(TL.top, -r, TOTAL * TL.z - r); }
+function schedule() { if (!TL.raf) TL.raf = requestAnimationFrame(render); }
+function render() {
+  TL.raf = 0;
+  if (!tl || !tl.clientHeight) return;
+  const H = tl.clientHeight, z = TL.z, top = TL.top, Y = y => toU(y) * z - top;
+  for (const r of rooms) {
+    const a = Y(r.e.s), b = Y(r.e.e), vis = b > 0 && a < H;
+    r.d.style.display = vis ? "" : "none"; if (!vis) continue;
+    r.d.style.transform = `translateY(${a}px)`; r.d.style.height = (b - a + 1) + "px";
+    const room = b - a, lh = r.label.offsetHeight || 80;
+    r.label.style.visibility = room > lh + 6 ? "visible" : "hidden";
+    r.label.style.transform = `translateY(${clamp(-a + 8, 6, Math.max(6, room - lh - 6))}px)`;
+  }
+  for (const o of bars) {
+    if (o.hidden) continue;
+    const a = Y(o.m.s), b = Y(o.m.e), h = Math.max(5, b - a), vis = b > -10 && a < H + 10;
+    o.b.style.visibility = vis ? "visible" : "hidden"; if (!vis) continue;
+    o.b.style.transform = `translateY(${a}px)`; o.b.style.height = h + "px";
+    let l = "", need = 0;
+    if (o.pw - 10 >= o.word) { need = Math.ceil(o.px0 / (o.pw - 10)) * 15 + 8; if (h >= need) l = "h"; }
+    if (!l && o.pw >= 13) { const lines = Math.max(1, Math.floor((o.pw - 2) / 13.5)); need = Math.max(o.px0 / lines, o.word) + 14; if (h >= need) l = "v"; }
+    if (o.b.dataset.l !== l) o.b.dataset.l = l;
+    if (l) o.s.style.transform = a < 0 ? `translateY(${clamp(-a + 4, 0, Math.max(0, h - need))}px)` : "";
+  }
+  drawTicks(Y, H); drawWorks(Y, H);
+  const yNow = Math.round(toY((top + readY()) / z));
+  if (yNow !== TL.lastYear) { TL.lastYear = yNow; updateReading(yNow); }
+  saveView();
+}
+const saveView = (() => { let t; return () => { clearTimeout(t); t = setTimeout(() => lsSet("view", { z: TL.z, u: (TL.top + readY()) / TL.z }), 300); }; })();
+function drawTicks(Y, H) {
+  const y0 = toY(TL.top / TL.z), y1 = toY((TL.top + H) / TL.z), span = y1 - y0;
+  const taken = [], out = [];
+  for (const st of [10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 1]) {
+    if (span / st > 400) continue;
+    for (let y = Math.ceil(y0 / st) * st; y <= y1; y += st) {
+      if (y === 0) continue;
+      const p = Y(y);
+      if (p < -4 || p > H || taken.some(t => Math.abs(t - p) < 40)) continue;
+      taken.push(p); out.push([y, p]);
+    }
+  }
+  while (ticks.length < out.length) { const d = document.createElement("div"); d.className = "tick"; tl.insertBefore(d, bars[0].b); ticks.push(d); }
+  ticks.forEach((d, i) => {
+    if (i >= out.length) { d.style.display = "none"; return; }
+    const [y, p] = out[i]; d.style.display = ""; d.style.transform = `translateY(${p}px)`;
+    const txt = y < 0 ? "−" + (-y >= 1000 ? (-y / 1000) + " k" : -y) : String(y); if (d.textContent !== txt) d.textContent = txt;
+  });
+}
+function workYear(w) { const y = parseYear(w.year); if (y != null) return { y, approx: false }; const m = byId[w.movement]; return m ? { y: Math.round((m.s + Math.min(m.e, 2026)) / 2), approx: true } : null; }
+let wkEls = new Map();
+function drawWorks(Y, H) {
+  const items = works.map(w => ({ w, p: workYear(w) })).filter(o => o.p).map(o => ({ ...o, py: Y(o.p.y) })).filter(o => o.py > -60 && o.py < H + 60).sort((a, b) => a.py - b.py);
+  const groups = [];
+  for (const it of items) { const g = groups[groups.length - 1]; if (g && it.py - g.py < 48) g.list.push(it); else groups.push({ py: it.py, list: [it] }); }
+  const seen = new Set();
+  for (const g of groups) {
+    const key = g.list.map(i => i.w.id).join(","); seen.add(key);
+    let e = wkEls.get(key);
+    if (!e) {
+      e = document.createElement("button"); const w0 = g.list[g.list.length - 1].w;
+      e.className = "wk" + (g.list.length === 1 && g.list[0].p.approx ? " approx" : "");
+      if (g.list.length === 1) e.dataset.w = w0.id; else e.dataset.g = key;
+      e.setAttribute("aria-label", g.list.length === 1 ? (w0.title || "Œuvre") : g.list.length + " œuvres");
+      e.innerHTML = (w0.thumb ? `<img alt="" src="${thumb(w0)}">` : `<i>${esc(w0.title || w0.artist || "Sans titre")}</i>`) + (g.list.length > 1 ? `<b>${g.list.length}</b>` : "");
+      tl.insertBefore(e, line); wkEls.set(key, e);
+    }
+    e.style.transform = `translateY(${g.py - 22}px)`;
+  }
+  for (const [k, e] of wkEls) if (!seen.has(k)) { e.remove(); wkEls.delete(k); }
+}
+function resetWorksLayer() { for (const e of wkEls.values()) e.remove(); wkEls.clear(); schedule(); }
+function eraAt(y) { return ERAS.find(e => y >= e.s && y < e.e) || ERAS[ERAS.length - 1]; }
+function updateReading(y) {
+  const e = eraAt(y);
+  if (VIEW === "frise") setHeader(e, y);
+  const here = MOVEMENTS.filter(m => y >= m.s && y <= m.e && (TL.track === "both" || TL.track === m.tr)).sort((a, b) => (a.tr === b.tr ? (a.e - a.s) - (b.e - b.s) : a.tr === "w" ? -1 : 1));
+  for (const o of bars) o.b.classList.toggle("on", y >= o.m.s && y <= o.m.e);
+  $("#chips").innerHTML = here.length ? here.map(m => `<button class="chip ${m.tr}" data-m="${m.id}">${esc(m.n)}</button>`).join("") : `<button class="chip" data-m="${e.id}">${esc(e.n)}</button>`;
+}
+function setHeader(e, y) {
+  $("#top").classList.remove("plain");
+  $("#top").style.background = e.wall; $("#era-btn").textContent = e.n; $("#era-btn").dataset.m = e.id;
+  $("#year").innerHTML = y < 0 ? `${Math.abs(y) >= 10000 ? Math.round(-y / 1000) + " k" : -y}<small>av. J.-C.</small>` : String(y);
+  const mc = $('meta[name=theme-color]'); if (mc) mc.content = e.wall;
+}
+function zoomAt(py, nz) {
+  nz = clamp(nz, minZ(), 16); const u = (TL.top + py) / TL.z;
+  TL.z = nz; TL.top = u * nz - py; clampTop(); schedule();
+}
+function bindGestures() {
+  const pts = new Map(); let pinch = null, lastY = 0, lastT = 0, vel = 0, startY = 0;
+  const rel = e => e.clientY - tl.getBoundingClientRect().top;
+  tl.addEventListener("pointerdown", e => {
+    pts.set(e.pointerId, e.clientY); cancelAnimationFrame(TL.inertia); TL.moved = false;
+    try { tl.setPointerCapture(e.pointerId); } catch {}
+    if (pts.size === 1) { lastY = startY = e.clientY; lastT = e.timeStamp; vel = 0; }
+    if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.max(30, Math.abs(a - b)), z: TL.z }; TL.moved = true; }
+  });
+  tl.addEventListener("pointermove", e => {
+    if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, e.clientY);
+    if (pts.size >= 2 && pinch) {
+      const [a, b] = [...pts.values()], d = Math.max(30, Math.abs(a - b)), rect = tl.getBoundingClientRect();
+      zoomAt((a + b) / 2 - rect.top, pinch.z * d / pinch.d); return;
+    }
+    if (pts.size === 1) {
+      if (Math.abs(e.clientY - startY) > 7) TL.moved = true;
+      if (!TL.moved) return;
+      const dy = e.clientY - lastY, dt = Math.max(1, e.timeStamp - lastT);
+      vel = .75 * (dy / dt) + .25 * vel; lastY = e.clientY; lastT = e.timeStamp;
+      TL.top -= dy; clampTop(); schedule();
+    }
+  });
+  const up = e => {
+    if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = null;
+    if (pts.size === 1) { lastY = startY = [...pts.values()][0]; lastT = e.timeStamp; vel = 0; }
+    if (pts.size === 0 && TL.moved && Math.abs(vel) > .08 && e.timeStamp - lastT < 80) glide(vel);
+  };
+  tl.addEventListener("pointerup", up); tl.addEventListener("pointercancel", up);
+  tl.addEventListener("wheel", e => { e.preventDefault(); if (e.ctrlKey || e.metaKey) zoomAt(rel(e), TL.z * Math.exp(-e.deltaY * .01)); else { TL.top += e.deltaY; clampTop(); schedule(); } }, { passive: false });
+  function glide(v) { let t = performance.now(); const step = n => { const dt = Math.min(40, n - t); t = n; TL.top -= v * dt; clampTop(); v *= Math.pow(.996, dt); schedule(); if (Math.abs(v) > .03) TL.inertia = requestAnimationFrame(step); }; TL.inertia = requestAnimationFrame(step); }
+  tl.addEventListener("click", e => {
+    if (TL.moved) { TL.moved = false; return; }
+    const t = e.target.closest("[data-m],[data-w],[data-g]"); if (!t) return;
+    if (t.dataset.m) openFiche(t.dataset.m); else if (t.dataset.w) openWork(t.dataset.w); else openGroup(t.dataset.g.split(","));
+  });
+}
+function setTrack(t) { TL.track = t; lsSet("track", t); document.querySelectorAll("#cols .seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === t)); layoutBars(); TL.lastYear = null; schedule(); }
+
+/* ========= Fenêtres ========= */
+const stack = [];
+function openSheet(title, body, foot) {
+  const s = document.createElement("section"); s.className = "sheet"; s.setAttribute("role", "dialog"); s.setAttribute("aria-modal", "true");
+  s.innerHTML = `<div class="sheet-h"><h2></h2><button class="sheet-x" aria-label="Fermer">×</button></div><div class="sheet-b"></div>${foot ? '<div class="sheet-f"></div>' : ""}`;
+  $("h2", s).textContent = title; $(".sheet-b", s).innerHTML = body; if (foot) $(".sheet-f", s).innerHTML = foot;
+  $(".sheet-x", s).onclick = () => closeSheet();
+  document.body.append(s); if (stack.length) stack[stack.length - 1].style.display = "none";
+  stack.push(s); $("#veil").classList.add("on"); history.pushState({ sheet: stack.length }, "");
+  return s;
+}
+function closeSheet() { if (stack.length) history.back(); }
+function closeSheetNow(s) { if (s && s === stack[stack.length - 1]) closeSheet(); }
+window.addEventListener("popstate", () => {
+  const s = stack.pop(); if (!s) return; s.onclosed?.(); s.remove();
+  if (stack.length) stack[stack.length - 1].style.display = ""; else $("#veil").classList.remove("on");
+});
+$("#veil").onclick = () => { if (!stack[stack.length - 1]?.dataset.sticky) closeSheet(); };
+
+/* ========= Fiche d'un courant ou d'une époque ========= */
+async function openFiche(id) {
+  const m = byId[id], mine = works.filter(w => w.movement === id);
+  const note = (await dbGet("notes", id))?.text || "", saved = await dbGet("wiki", m.wiki);
+  const tagKind = m.tr === "era" ? "Époque" : m.tr === "m" ? "Repère mondial" : "Courant";
+  const s = openSheet(m.n, `
+    <p class="dates">${tagKind}, ${fmtSpan(m)}</p>
+    <p class="lead">${esc(m.t)}</p>
+    <h3>À retenir</h3><ul class="keys">${m.k.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    <h3>Artistes phares</h3><div class="tags">${m.a.map(a => /anonym/i.test(a) ? `<span class="tag">${esc(a)}</span>` : `<button class="tag" data-q="${esc(a)}">${esc(a)}</button>`).join("")}</div>
+    <h3>Œuvres célèbres</h3>${m.o.map(o => `<button class="oeuvre" data-q="${esc(o[0])}"><b>${esc(o[0])}</b><span>${esc(o[1])}, ${esc(o[2])}. ${esc(o[3])}</span></button>`).join("")}
+    <div class="wiki"><div class="w-body">${saved ? wikiHtml(saved) : ""}</div><div class="row">${saved ? "" : `<button class="btn w-load">Charger la synthèse Wikipédia</button>`}<a class="btn alt" href="${wikiUrl(m.wiki)}" target="_blank" rel="noopener">Ouvrir sur Wikipédia</a></div></div>
+    ${mine.length ? `<h3>Mes œuvres rattachées</h3><div class="grid">${mine.map(tile).join("")}</div>` : ""}
+    <h3>Mes notes</h3><div class="f"><textarea id="m-note" aria-label="Mes notes sur ${esc(m.n)}" placeholder="Ce que je retiens, ce qui m’a marqué, à revoir…">${esc(note)}</textarea></div><p class="small" id="m-state"></p>`);
+  bindCommon(s);
+  const load = $(".w-load", s);
+  if (load) load.onclick = async () => {
+    load.textContent = "Chargement…"; load.disabled = true;
+    try { const d = await fetchSummary(m.wiki); $(".w-body", s).innerHTML = wikiHtml(d); load.remove(); }
+    catch { load.disabled = false; load.textContent = "Réessayer"; toast(navigator.onLine ? "Wikipédia n’a pas répondu. Réessaie dans un instant." : "Pas de réseau : la fiche ci-dessus reste disponible."); }
+  };
+  let t; const area = $("#m-note", s), st = $("#m-state", s);
+  const save = () => dbPut("notes", { id, text: area.value, at: Date.now() }).then(() => st.textContent = "Notes enregistrées");
+  area.oninput = () => { clearTimeout(t); st.textContent = ""; t = setTimeout(save, 500); };
+  s.onclosed = () => { clearTimeout(t); if (area.value !== note) save(); };
+}
+function bindCommon(root) {
+  root.addEventListener("click", e => {
+    const q = e.target.closest("[data-q]"); if (q) { openWikiFor(q.dataset.q); return; }
+    const w = e.target.closest("[data-w]"); if (w && !e.target.closest(".wk")) { openWork(w.dataset.w); return; }
+    const m = e.target.closest("button[data-m]"); if (m) openFiche(m.dataset.m);
+  });
+}
+const tile = w => `<button class="tile" data-w="${w.id}">${w.thumb ? `<img alt="${esc(w.title || "Œuvre")}" loading="lazy" src="${thumb(w)}">` : `<p><b>${esc(w.title || "Sans titre")}</b><br>${esc(w.artist || "")}</p>`}${incomplete(w) ? "<em>À compléter</em>" : ""}</button>`;
+const incomplete = w => !w.artist || !w.title || !w.year;
+
+/* ========= Wikipédia : gratuit, sans Claude, gardé pour le hors-ligne ========= */
+async function fetchSummary(title) {
+  const get = t => fetch("https://fr.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(t.replace(/ /g, "_")));
+  let r = await get(title);
+  if (r.status === 404) { const hits = await wikiSearch(title); if (hits.length) r = await get(hits[0].title); }
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const j = await r.json();
+  const d = { id: title, title: j.title, text: j.extract, desc: j.description || "", url: j.content_urls?.mobile?.page || wikiUrl(title), img: j.thumbnail?.source || "", at: Date.now() };
+  await dbPut("wiki", d); return d;
+}
+const wikiHtml = d => `${d.img && navigator.onLine ? `<img alt="" src="${esc(d.img)}">` : ""}<p>${esc(d.text)}</p><p class="small">Source : Wikipédia. Synthèse gardée pour le hors-ligne.</p>`;
+async function openWikiFor(q) {
+  const cached = await dbGet("wiki", q);
+  if (cached) return showWiki(cached);
+  if (!navigator.onLine) return toast("Pas de réseau : cette page n’a pas encore été enregistrée.");
+  try { const hits = await wikiSearch(q); if (!hits.length) return toast("Aucune page trouvée sur Wikipédia."); showWiki(await fetchSummary(hits[0].title)); }
+  catch { toast("Wikipédia n’a pas répondu. Réessaie dans un instant."); }
+}
+function showWiki(d) { openSheet(d.title, `${d.desc ? `<p class="dates">${esc(d.desc)}</p>` : ""}<div class="wiki" style="margin-top:0">${wikiHtml(d)}<div class="row"><a class="btn" href="${esc(d.url)}" target="_blank" rel="noopener">Lire sur Wikipédia</a></div></div>`); }
+async function wikiSearch(q) {
+  const r = await fetch("https://fr.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=8&srsearch=" + encodeURIComponent(q));
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return (await r.json()).query.search.map(x => ({ title: x.title, snip: x.snippet.replace(/<[^>]+>/g, "").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&#0?39;/g, "’") }));
+}
+
+/* ========= Ajout de photos ========= */
+async function shrink(file) {
+  let bmp;
+  try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+  catch { return null; }
+  const draw = async (max, q) => {
+    const r = Math.min(1, max / Math.max(bmp.width, bmp.height)), c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * r); c.height = Math.round(bmp.height * r); c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    return new Promise(ok => c.toBlob(ok, "image/jpeg", q));
+  };
+  const out = { photo: await draw(1800, .84), thumb: await draw(320, .78) }; bmp.close?.(); return out;
+}
+$("#file").onchange = async e => {
+  const files = [...e.target.files]; e.target.value = "";
+  for (let i = 0; i < files.length; i++) {
+    const img = await shrink(files[i]);
+    if (!img) toast("Cette image n’a pas pu être lue. Tu peux quand même remplir la fiche.");
+    const res = await workForm({ imgs: img, fileDate: files[i].lastModified, step: files.length > 1 ? `Photo ${i + 1} sur ${files.length}` : "" });
+    if (res === "stop") break;
+  }
+};
+$("#add").onclick = () => {
+  const s = openSheet("Ajouter une œuvre", `<div class="list"><label class="btn brass" for="file" id="pick">Choisir ou prendre des photos</label><button class="btn alt" id="nophoto">Noter une œuvre sans photo</button></div>`);
+  $("#pick", s).onclick = () => { history.back(); };
+  $("#nophoto", s).onclick = () => { history.back(); setTimeout(() => workForm({}), 60); };
+};
+
+const lastCtx = () => { const w = [...works].sort((a, b) => b.createdAt - a.createdAt)[0]; return w && Date.now() - w.createdAt < 864e5 * 3 ? w : null; };
+
+function workForm({ imgs, fileDate, step, work }) {
+  return new Promise(resolve => {
+    const w = work || {}; const url = imgs?.photo ? URL.createObjectURL(imgs.photo) : "";
+    const ctx0 = w.ctx || "expo"; const prev = work ? null : lastCtx();
+    const date0 = w.date || (fileDate ? new Date(fileDate).toISOString().slice(0, 10) : "");
+    const f = (id, label, val = "", extra = "") => `<div class="f"><label for="${id}">${label}</label><input id="${id}" value="${esc(val)}" autocomplete="off" ${extra}></div>`;
+    const s = openSheet(work ? "Modifier la fiche" : (step || "Nouvelle œuvre"), `
+      ${url ? `<img class="prev" alt="Photo importée" src="${url}">` : ""}
+      <p class="hint" style="margin-top:8px">Remplis ce que tu sais : tout est facultatif, tu pourras compléter plus tard.</p>
+      <div class="form">
+        ${f("w-artist", "Artiste", w.artist, 'list="dl-art"')}
+        ${f("w-title", "Titre", w.title)}
+        ${f("w-year", "Année de l’œuvre", w.year, 'placeholder="1889, vers 1650, XVIIe siècle…"')}
+        <div class="f"><span>Courant artistique</span><div id="w-sug"></div>
+          <select id="w-mov" aria-label="Autre courant"><option value="">Aucun pour l’instant</option>${[...MOVEMENTS].sort((a, b) => a.s - b.s).map(m => `<option value="${m.id}">${esc(m.n)}</option>`).join("")}</select></div>
+        <div class="two">${f("w-tech", "Technique", w.technique, 'placeholder="Huile sur toile"')}${f("w-dims", "Dimensions", w.dims, 'placeholder="73 × 92 cm"')}</div>
+        <div class="f"><span>Où l’as-tu vue ?</span><div class="seg2" id="w-ctx">
+          <button type="button" data-c="expo">Exposition</button><button type="button" data-c="livre">Livre</button><button type="button" data-c="lieu">Autre lieu</button></div></div>
+        ${prev?.place || prev?.expo ? `<button type="button" class="tag sug" id="w-same">Même visite que la dernière : ${esc(prev.expo || prev.place)}</button>` : ""}
+        <div data-for="expo">${f("w-expo", "Nom de l’exposition", w.expo, 'list="dl-expo"')}</div>
+        <div data-for="livre">${f("w-book", "Titre du livre", w.book, 'list="dl-book"')}</div>
+        <div data-for="livre">${f("w-page", "Page", w.page, 'inputmode="numeric"')}</div>
+        <div data-for="expo lieu">${f("w-place", "Musée ou lieu de la photo", w.place, 'list="dl-place"')}</div>
+        ${f("w-date", "Date de la visite ou de la lecture", date0, 'type="date"')}
+        <div class="f"><span>Ma note</span><div class="stars" id="w-stars">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-n="${n}" aria-label="${n} sur 5">★</button>`).join("")}</div></div>
+        <div class="f"><label for="w-notes">Mes impressions</label><textarea id="w-notes">${esc(w.notes)}</textarea></div>
+      </div>
+      <datalist id="dl-art">${[...new Set([...MOVEMENTS.flatMap(m => m.a).filter(a => !/anonym/i.test(a)), ...works.map(x => x.artist).filter(Boolean)])].sort().map(a => `<option value="${esc(a)}">`).join("")}</datalist>
+      <datalist id="dl-expo">${visits.filter(v => v.kind === "expo").map(v => `<option value="${esc(v.name)}">`).join("")}</datalist>
+      <datalist id="dl-book">${visits.filter(v => v.kind === "livre").map(v => `<option value="${esc(v.name)}">`).join("")}</datalist>
+      <datalist id="dl-place">${[...new Set(works.map(x => x.place).concat(visits.map(v => v.place)).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join("")}</datalist>`,
+      `${step ? `<button class="btn alt" id="w-skip">Ignorer cette photo</button>` : ""}<button class="btn" id="w-save">Enregistrer</button>`);
+    s.dataset.sticky = "1";
+    let ctx = ctx0, rating = w.rating || 0, mov = w.movement || "", done = false;
+    const v = id => $("#" + id, s).value.trim();
+    const paintCtx = () => { s.querySelectorAll("#w-ctx button").forEach(b => b.setAttribute("aria-pressed", b.dataset.c === ctx)); s.querySelectorAll("[data-for]").forEach(d => d.style.display = d.dataset.for.split(" ").includes(ctx) ? "" : "none"); };
+    const paintStars = () => s.querySelectorAll("#w-stars button").forEach(b => b.classList.toggle("on", +b.dataset.n <= rating));
+    function paintSug() {
+      const y = parseYear(v("w-year")), list = suggest(y, v("w-artist")), box = $("#w-sug", s), sel = $("#w-mov", s);
+      sel.value = mov;
+      box.innerHTML = list.length ? `<p class="hint">${y != null ? `Proposé pour ${esc(fmtY(y))}` : "Proposé d’après l’artiste"} :</p><div class="tags" style="margin-bottom:8px">${list.map((m, i) => `<button type="button" class="tag ${i === 0 && mov !== m.id ? "sug" : ""}" data-pick="${m.id}" aria-pressed="${mov === m.id}">${esc(m.n)}</button>`).join("")}</div>` : `<p class="hint">Indique une année ou un artiste pour obtenir une proposition.</p>`;
+    }
+    $("#w-sug", s).onclick = e => { const b = e.target.closest("[data-pick]"); if (b) { mov = mov === b.dataset.pick ? "" : b.dataset.pick; paintSug(); } };
+    $("#w-mov", s).onchange = e => { mov = e.target.value; paintSug(); };
+    $("#w-year", s).oninput = paintSug; $("#w-artist", s).oninput = paintSug;
+    $("#w-ctx", s).onclick = e => { const b = e.target.closest("button"); if (b) { ctx = b.dataset.c; paintCtx(); } };
+    $("#w-stars", s).onclick = e => { const b = e.target.closest("button"); if (b) { rating = rating === +b.dataset.n ? 0 : +b.dataset.n; paintStars(); } };
+    const same = $("#w-same", s);
+    if (same) same.onclick = () => { ctx = prev.ctx; $("#w-expo", s).value = prev.expo || ""; $("#w-place", s).value = prev.place || ""; $("#w-book", s).value = prev.book || ""; $("#w-date", s).value = prev.date || $("#w-date", s).value; paintCtx(); same.remove(); };
+    paintCtx(); paintStars(); paintSug();
+    const finish = r => { done = true; closeSheet(); resolve(r); };
+    s.onclosed = () => { if (url) URL.revokeObjectURL(url); if (!done) { done = true; resolve(step ? "stop" : null); } };
+    const skip = $("#w-skip", s); if (skip) skip.onclick = () => finish("skip");
+    $("#w-save", s).onclick = async () => {
+      const rec = { ...w, id: w.id || uid(), artist: v("w-artist"), title: v("w-title"), year: v("w-year"), movement: mov, technique: v("w-tech"), dims: v("w-dims"), ctx,
+        expo: ctx === "expo" ? v("w-expo") : "", book: ctx === "livre" ? v("w-book") : "", page: ctx === "livre" ? v("w-page") : "", place: ctx === "livre" ? "" : v("w-place"), date: v("w-date"), rating, notes: v("w-notes"), createdAt: w.createdAt || Date.now(), hasPhoto: w.hasPhoto || !!imgs?.photo, thumb: imgs?.thumb || w.thumb || null };
+      try {
+        if (imgs?.photo) await dbPut("photos", { id: rec.id, blob: imgs.photo });
+        await dbPut("works", rec);
+        const i = works.findIndex(x => x.id === rec.id); if (i >= 0) works[i] = rec; else works.push(rec);
+        await linkVisit(rec); resetWorksLayer(); refreshLists();
+        toast(incomplete(rec) ? "Enregistré. Fiche à compléter plus tard." : "Enregistré");
+        finish(rec);
+      } catch { toast("Enregistrement impossible : la mémoire de l’appareil est peut-être pleine."); }
+    };
+  });
+}
+async function linkVisit(w) {
+  const name = w.ctx === "expo" ? w.expo : w.ctx === "livre" ? w.book : ""; if (!name) return;
+  if (visits.some(v => v.kind === w.ctx && norm(v.name) === norm(name))) return;
+  const v = { id: uid(), kind: w.ctx, name, place: w.place || "", date: w.date || "", rating: 0, notes: "", createdAt: Date.now() };
+  await dbPut("visits", v); visits.push(v);
+}
+
+/* ========= Détail d'une œuvre ========= */
+async function openWork(id) {
+  const w = works.find(x => x.id === id); if (!w) return;
+  const ph = w.hasPhoto ? await dbGet("photos", id) : null, url = ph ? URL.createObjectURL(ph.blob) : "", m = byId[w.movement];
+  const rows = [["Année", w.year], ["Technique", w.technique], ["Dimensions", w.dims], ["Exposition", w.expo], ["Livre", w.book && (w.book + (w.page ? `, p. ${w.page}` : ""))], ["Lieu", w.place], ["Vue le", w.date && new Date(w.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })], ["Ma note", w.rating ? "★".repeat(w.rating) : ""]].filter(r => r[1]);
+  const s = openSheet(w.title || "Sans titre", `${url ? `<img class="full" alt="${esc(w.title || "Œuvre")}" src="${url}">` : ""}
+    <p class="dates">${esc(w.artist || "Artiste à préciser")}</p>
+    ${rows.length ? `<dl class="meta">${rows.map(r => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join("")}</dl>` : ""}
+    ${m ? `<h3>Courant</h3><div class="tags"><button class="tag" data-m="${m.id}">${esc(m.n)}</button></div>` : ""}
+    ${w.notes ? `<h3>Mes impressions</h3><p style="white-space:pre-wrap">${esc(w.notes)}</p>` : ""}
+    ${w.artist ? `<h3>En savoir plus</h3><div class="tags"><button class="tag" data-q="${esc(w.artist)}">${esc(w.artist)} sur Wikipédia</button></div>` : ""}`,
+    `<button class="btn danger" id="d-del">Supprimer</button><button class="btn" id="d-edit">Modifier</button>`);
+  bindCommon(s);
+  s.onclosed = () => url && URL.revokeObjectURL(url);
+  $("#d-edit", s).onclick = async () => { closeSheet(); setTimeout(async () => { await workForm({ work: w }); }, 60); };
+  const del = $("#d-del", s);
+  del.onclick = async () => {
+    if (!del.classList.contains("arm")) { del.classList.add("arm"); del.textContent = "Confirmer la suppression"; return; }
+    await dbDel("works", id); await dbDel("photos", id); works = works.filter(x => x.id !== id); thumbUrls.delete(id);
+    closeSheet(); resetWorksLayer(); refreshLists(); toast("Œuvre supprimée");
+  };
+}
+function openGroup(ids) { const list = ids.map(i => works.find(w => w.id === i)).filter(Boolean); const s = openSheet(`${list.length} œuvres`, `<div class="grid">${list.map(tile).join("")}</div>`); bindCommon(s); }
+
+/* ========= Vues ========= */
+let VIEW = "frise", collFilter = "all";
+const TITLES = { oeuvres: "Mes œuvres", carnet: "Mon carnet", recherche: "Recherche" };
+function go(v) {
+  VIEW = v; document.querySelectorAll(".view").forEach(e => e.classList.toggle("on", e.id === "v-" + v));
+  document.querySelectorAll("#nav .t").forEach(b => b.dataset.v === v ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+  if (v === "frise") { layoutBars(); TL.lastYear = null; schedule(); }
+  else { const t = $("#top"); t.classList.add("plain"); t.style.background = "#17493d"; $("#era-btn").textContent = TITLES[v]; delete $("#era-btn").dataset.m; const mc = $('meta[name=theme-color]'); if (mc) mc.content = "#17493d"; }
+  refreshLists();
+}
+function refreshLists() {
+  if (VIEW === "oeuvres") renderColl(); if (VIEW === "carnet") renderCarnet();
+}
+function renderColl() {
+  const F = { all: "Toutes", expo: "Expositions", livre: "Livres", lieu: "Autres lieux", todo: "À compléter" };
+  const list = [...works].sort((a, b) => b.createdAt - a.createdAt).filter(w => collFilter === "all" || (collFilter === "todo" ? incomplete(w) : w.ctx === collFilter));
+  $("#v-oeuvres").innerHTML = `<div class="pad"><div class="filters">${Object.entries(F).map(([k, l]) => `<button data-f="${k}" aria-pressed="${collFilter === k}">${l}</button>`).join("")}</div>
+    ${list.length ? `<div class="grid">${list.map(tile).join("")}</div>` : works.length ? `<p class="note">Aucune œuvre dans cette catégorie.</p>` : `<div class="empty"><h2>Ton musée personnel commence ici</h2><p class="note">Appuie sur + pour importer une photo prise en expo ou dans un livre. Elle prendra sa place sur la frise.</p></div>`}</div>`;
+}
+function renderCarnet() {
+  const list = [...visits].sort((a, b) => (b.date || "").localeCompare(a.date || "") || b.createdAt - a.createdAt);
+  $("#v-carnet").innerHTML = `<div class="pad"><div class="head-row"><p class="note">${list.length ? `${list.filter(v => v.kind === "expo").length} expositions, ${list.filter(v => v.kind === "livre").length} livres` : ""}</p><button class="btn brass" id="c-add">Ajouter</button></div>
+    ${list.length ? `<div class="list">${list.map(v => { const n = works.filter(w => (v.kind === "expo" ? w.expo : w.book) && norm(v.kind === "expo" ? w.expo : w.book) === norm(v.name)).length; return `<button class="card" data-v="${v.id}"><h3>${esc(v.name)}</h3><p>${[v.kind === "expo" ? "Exposition" : "Livre", v.place, v.date && new Date(v.date).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }), n ? `${n} œuvre${n > 1 ? "s" : ""}` : ""].filter(Boolean).map(esc).join(", ")}${v.rating ? " " + "★".repeat(v.rating) : ""}</p>${v.notes ? `<p class="quote">${esc(v.notes.slice(0, 140))}${v.notes.length > 140 ? "…" : ""}</p>` : ""}</button>`; }).join("")}</div>` : `<div class="empty"><h2>Aucune sortie notée</h2><p class="note">Ajoute une exposition ou un livre, avec tes impressions. Ceux que tu cites en ajoutant une photo apparaissent aussi ici.</p></div>`}</div>`;
+}
+$("#v-oeuvres").onclick = e => { const f = e.target.closest("[data-f]"); if (f) { collFilter = f.dataset.f; renderColl(); return; } const w = e.target.closest("[data-w]"); if (w) openWork(w.dataset.w); };
+$("#v-carnet").onclick = e => { if (e.target.closest("#c-add")) return visitForm(); const c = e.target.closest("[data-v]"); if (c) openVisit(c.dataset.v); };
+
+function visitForm(v0) {
+  const v = v0 || { kind: "expo" }; let kind = v.kind, rating = v.rating || 0;
+  const s = openSheet(v0 ? "Modifier" : "Nouvelle sortie ou lecture", `<div class="form">
+    <div class="seg2" id="v-k"><button type="button" data-c="expo">Exposition</button><button type="button" data-c="livre">Livre</button></div>
+    <div class="f"><label for="v-name" id="v-nl">Titre</label><input id="v-name" value="${esc(v.name)}" autocomplete="off"></div>
+    <div class="f"><label for="v-place" id="v-pl">Musée ou lieu</label><input id="v-place" value="${esc(v.place)}" autocomplete="off"></div>
+    <div class="f"><label for="v-date">Date</label><input id="v-date" type="date" value="${esc(v.date)}"></div>
+    <div class="f"><span>Ma note</span><div class="stars" id="v-stars">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-n="${n}" aria-label="${n} sur 5">★</button>`).join("")}</div></div>
+    <div class="f"><label for="v-notes">Mes impressions</label><textarea id="v-notes">${esc(v.notes)}</textarea></div></div>`,
+    `<button class="btn" id="v-save">Enregistrer</button>`);
+  s.dataset.sticky = "1";
+  const pk = () => { s.querySelectorAll("#v-k button").forEach(b => b.setAttribute("aria-pressed", b.dataset.c === kind)); $("#v-pl", s).textContent = kind === "expo" ? "Musée ou lieu" : "Auteur"; };
+  const ps = () => s.querySelectorAll("#v-stars button").forEach(b => b.classList.toggle("on", +b.dataset.n <= rating));
+  $("#v-k", s).onclick = e => { const b = e.target.closest("button"); if (b) { kind = b.dataset.c; pk(); } };
+  $("#v-stars", s).onclick = e => { const b = e.target.closest("button"); if (b) { rating = rating === +b.dataset.n ? 0 : +b.dataset.n; ps(); } };
+  pk(); ps();
+  $("#v-save", s).onclick = async () => {
+    const g = id => $("#" + id, s).value.trim();
+    const rec = { ...v, id: v.id || uid(), kind, name: g("v-name") || "Sans titre", place: g("v-place"), date: g("v-date"), rating, notes: g("v-notes"), createdAt: v.createdAt || Date.now() };
+    await dbPut("visits", rec); const i = visits.findIndex(x => x.id === rec.id); if (i >= 0) visits[i] = rec; else visits.push(rec);
+    closeSheet(); refreshLists(); toast("Enregistré");
+  };
+}
+function openVisit(id) {
+  const v = visits.find(x => x.id === id); if (!v) return;
+  const list = works.filter(w => (v.kind === "expo" ? w.expo : w.book) && norm(v.kind === "expo" ? w.expo : w.book) === norm(v.name));
+  const s = openSheet(v.name, `<p class="dates">${[v.kind === "expo" ? "Exposition" : "Livre", v.place, v.date && new Date(v.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })].filter(Boolean).map(esc).join(", ")}${v.rating ? " " + "★".repeat(v.rating) : ""}</p>
+    ${v.notes ? `<h3>Mes impressions</h3><p style="white-space:pre-wrap">${esc(v.notes)}</p>` : ""}${list.length ? `<h3>Œuvres</h3><div class="grid">${list.map(tile).join("")}</div>` : ""}`,
+    `<button class="btn danger" id="x-del">Supprimer</button><button class="btn" id="x-edit">Modifier</button>`);
+  bindCommon(s);
+  $("#x-edit", s).onclick = () => { closeSheet(); setTimeout(() => visitForm(v), 60); };
+  const del = $("#x-del", s);
+  del.onclick = async () => { if (!del.classList.contains("arm")) { del.classList.add("arm"); del.textContent = "Confirmer"; return; } await dbDel("visits", id); visits = visits.filter(x => x.id !== id); closeSheet(); refreshLists(); toast("Supprimé. Les œuvres sont conservées."); };
+}
+
+/* Recherche : d'abord dans l'appli, puis sur Wikipédia si le réseau est là */
+function localSearch(q) {
+  const n = norm(q); if (n.length < 2) return { mov: [], art: [], mine: [] };
+  const mov = ALL.filter(m => norm(m.n).includes(n));
+  const artMap = new Map(); MOVEMENTS.forEach(m => m.a.forEach(a => { if (norm(a).includes(n) && !/anonym/i.test(a)) { if (!artMap.has(a)) artMap.set(a, []); artMap.get(a).push(m); } }));
+  const oeuvres = []; ALL.forEach(m => m.o.forEach(o => { if (norm(o[0]).includes(n)) oeuvres.push({ o, m }); }));
+  const mine = works.filter(w => [w.artist, w.title, w.place, w.expo, w.book, w.notes].some(x => norm(x).includes(n)));
+  return { mov, art: [...artMap.entries()], oeuvres, mine };
+}
+async function renderSearch(q = "") {
+  const v = $("#v-recherche");
+  if (!$("#s-q", v)) {
+    v.innerHTML = `<div class="pad"><form class="searchbar" id="s-f"><input id="s-q" type="search" placeholder="Artiste, courant, œuvre…" aria-label="Rechercher" autocomplete="off"><button class="btn brass">Chercher</button></form><div id="s-r"></div></div>`;
+    $("#s-f", v).onsubmit = e => { e.preventDefault(); $("#s-q", v).blur(); renderSearch($("#s-q", v).value.trim()); };
+    $("#s-q", v).oninput = e => renderLocal(e.target.value.trim());
+    $("#s-r", v).onclick = async e => {
+      const t = e.target.closest("[data-m],[data-w],[data-t],[data-saved]"); if (!t) return;
+      if (t.dataset.m) openFiche(t.dataset.m); else if (t.dataset.w) openWork(t.dataset.w);
+      else if (t.dataset.saved) showWiki(await dbGet("wiki", t.dataset.saved));
+      else { try { showWiki(await fetchSummary(t.dataset.t)); renderSavedOnly(); } catch { toast("Wikipédia n’a pas répondu. Réessaie dans un instant."); } }
+    };
+  }
+  renderLocal(q);
+  if (!q) return;
+  const box = document.createElement("div"); box.id = "s-web";
+  $("#s-r", v).append(box);
+  if (!navigator.onLine) { box.innerHTML = `<h3 class="sec-t">Wikipédia</h3><p class="note">Pas de réseau. Les fiches de l’appli et les pages déjà consultées restent disponibles.</p>`; return; }
+  box.innerHTML = `<h3 class="sec-t">Wikipédia</h3><p class="note">Recherche en cours…</p>`;
+  try {
+    const hits = await wikiSearch(q);
+    box.innerHTML = `<h3 class="sec-t">Wikipédia</h3>` + (hits.length ? `<div class="list">${hits.map(h => `<button class="card" data-t="${esc(h.title)}"><h3>${esc(h.title)}</h3><p>${esc(h.snip)}</p></button>`).join("")}</div>` : `<p class="note">Aucune page trouvée.</p>`);
+  } catch { box.innerHTML = `<h3 class="sec-t">Wikipédia</h3><p class="note">Wikipédia n’a pas répondu. Réessaie dans un instant.</p>`; }
+}
+function renderSavedOnly() { const q = $("#s-q")?.value.trim(); if (!q) renderLocal(""); }
+async function renderLocal(q) {
+  const r = $("#s-r"); const { mov, art, oeuvres, mine } = localSearch(q);
+  if (!q || norm(q).length < 2) {
+    const saved = (await dbAll("wiki")).sort((a, b) => b.at - a.at);
+    r.innerHTML = saved.length ? `<h3 class="sec-t" style="margin-top:4px">Pages enregistrées</h3><p class="note" style="margin-bottom:8px">Consultables sans réseau.</p><div class="list">${saved.map(d => `<button class="card" data-saved="${esc(d.id)}"><h3>${esc(d.title)}</h3><p>${esc((d.desc || d.text).slice(0, 110))}</p></button>`).join("")}</div>` : `<div class="empty"><h2>Cherche un artiste, un courant, une œuvre</h2><p class="note">Les fiches de l’appli répondent même hors ligne. Avec du réseau, Wikipédia complète, et chaque page lue reste disponible ensuite.</p></div>`;
+    return;
+  }
+  let h = "";
+  if (mov.length) h += `<h3 class="sec-t" style="margin-top:4px">Courants et époques</h3><div class="list">${mov.map(m => `<button class="card" data-m="${m.id}"><h3>${esc(m.n)}</h3><p>${fmtSpan(m)}</p></button>`).join("")}</div>`;
+  if (art.length) h += `<h3 class="sec-t">Artistes</h3><div class="list">${art.slice(0, 12).map(([a, ms]) => `<button class="card" data-m="${ms[0].id}"><h3>${esc(a)}</h3><p>${ms.map(m => esc(m.n)).join(", ")}</p></button>`).join("")}</div>`;
+  if (oeuvres.length) h += `<h3 class="sec-t">Œuvres célèbres</h3><div class="list">${oeuvres.slice(0, 12).map(({ o, m }) => `<button class="card" data-m="${m.id}"><h3>${esc(o[0])}</h3><p>${esc(o[1])}, ${esc(o[2])}. ${esc(m.n)}</p></button>`).join("")}</div>`;
+  if (mine.length) h += `<h3 class="sec-t">Mes œuvres</h3><div class="grid">${mine.map(tile).join("")}</div>`;
+  r.innerHTML = h || `<p class="note">Rien dans l’appli. Appuie sur Chercher pour interroger Wikipédia.</p>`;
+}
+
+/* ========= Sauvegarde et réglages ========= */
+const b64 = blob => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = ko; r.readAsDataURL(blob); });
+const unb64 = async s => (await fetch(s)).blob();
+async function exportAll() {
+  toast("Préparation de la sauvegarde…");
+  const parts = ['{"app":"cimaise","v":1,"visits":', JSON.stringify(visits), ',"notes":', JSON.stringify(await dbAll("notes")), ',"wiki":', JSON.stringify(await dbAll("wiki")), ',"works":['];
+  let first = true; for (const w of works) { parts.push((first ? "" : ",") + JSON.stringify({ ...w, thumb: w.thumb ? await b64(w.thumb) : null })); first = false; }
+  parts.push('],"photos":['); first = true;
+  for (const w of works) { if (!w.hasPhoto) continue; const p = await dbGet("photos", w.id); if (!p) continue; parts.push((first ? "" : ",") + JSON.stringify({ id: w.id, b: await b64(p.blob) })); first = false; }
+  parts.push("]}");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(parts, { type: "application/json" }));
+  a.download = `cimaise-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000); lsSet("lastBackup", Date.now());
+  toast("Sauvegarde téléchargée");
+}
+async function importAll(file) {
+  try {
+    const d = JSON.parse(await file.text()); if (d.app !== "cimaise") throw 0;
+    for (const v of d.visits || []) await dbPut("visits", v);
+    for (const n of d.notes || []) await dbPut("notes", n);
+    for (const x of d.wiki || []) await dbPut("wiki", x);
+    for (const w of d.works || []) await dbPut("works", { ...w, thumb: w.thumb ? await unb64(w.thumb) : null });
+    for (const p of d.photos || []) await dbPut("photos", { id: p.id, blob: await unb64(p.b) });
+    works = await dbAll("works"); visits = await dbAll("visits"); thumbUrls.clear(); resetWorksLayer(); refreshLists();
+    toast(`${(d.works || []).length} œuvres restaurées`);
+  } catch { toast("Ce fichier n’est pas une sauvegarde Cimaise valide."); }
+}
+async function openSettings() {
+  let used = ""; try { const e = await navigator.storage.estimate(); used = `${Math.round(e.usage / 1048576)} Mo utilisés sur ${Math.round(e.quota / 1048576).toLocaleString("fr-FR")} Mo disponibles`; } catch {}
+  let persisted = false; try { persisted = await navigator.storage.persisted(); if (!persisted) persisted = await navigator.storage.persist(); } catch {}
+  const last = lsGet("lastBackup", 0);
+  const s = openSheet("Mes données", `<p class="lead">${works.length} œuvres et ${visits.length} sorties, enregistrées uniquement sur cet appareil.</p>
+    <p class="small">${used}. ${persisted ? "Stockage protégé contre le nettoyage automatique." : "Installe l’appli sur l’écran d’accueil pour protéger le stockage."}</p>
+    <h3>Sauvegarde</h3><p>Si tu désinstalles l’appli ou changes de téléphone, seule une sauvegarde permet de tout retrouver. Dernière sauvegarde : ${last ? new Date(last).toLocaleDateString("fr-FR") : "aucune"}.</p>
+    <div class="list" style="margin-top:10px"><button class="btn" id="s-exp">Télécharger une sauvegarde</button><label class="btn alt" for="s-imp">Restaurer une sauvegarde</label><input id="s-imp" type="file" accept="application/json,.json" hidden></div>
+    <h3>Connexion</h3><p class="small">L’appli fonctionne sans réseau. Seules la recherche et la synthèse Wikipédia ont besoin d’internet. Elle n’utilise jamais Claude.</p>`);
+  $("#s-exp", s).onclick = exportAll;
+  $("#s-imp", s).onchange = e => { if (e.target.files[0]) importAll(e.target.files[0]); };
+}
+
+/* ========= Démarrage ========= */
+async function start() {
+  try { await openDb(); works = await dbAll("works"); visits = await dbAll("visits"); }
+  catch { toast("Le stockage de ce navigateur est indisponible : rien ne sera conservé."); }
+  document.querySelectorAll("#cols .seg button").forEach(b => { b.setAttribute("aria-pressed", b.dataset.t === TL.track); b.onclick = () => setTrack(b.dataset.t); });
+  const mid = () => readY();
+  $("#z-in").onclick = () => zoomAt(mid(), TL.z * 1.6);
+  $("#z-out").onclick = () => zoomAt(mid(), TL.z / 1.6);
+  $("#z-all").onclick = () => { TL.z = minZ(); TL.top = 0; clampTop(); schedule(); };
+  $("#chips").onclick = e => { const b = e.target.closest("[data-m]"); if (b) openFiche(b.dataset.m); };
+  $("#era-btn").onclick = e => { if (e.currentTarget.dataset.m) openFiche(e.currentTarget.dataset.m); };
+  $("#menu").onclick = openSettings;
+  document.querySelectorAll("#nav .t").forEach(b => b.onclick = () => { go(b.dataset.v); if (b.dataset.v === "recherche") renderSearch($("#s-q")?.value.trim() || ""); });
+  $("#v-frise").classList.add("on"); buildTimeline(); go("frise");
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
+  try { navigator.storage?.persist?.(); } catch {}
+}
+start();
+</script>
+</body>
+</html>
