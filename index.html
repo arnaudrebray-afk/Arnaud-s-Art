@@ -1039,24 +1039,24 @@ async function cropEditor(blob) {
 
 /* Identification : la photo seule part vers Google Lens, jamais tes notes */
 function lensSheet(blob) {
-  const file = new File([blob], "oeuvre.jpg", { type: "image/jpeg" });
+  const file = new File([blob], "oeuvre-a-identifier.jpg", { type: "image/jpeg" });
   const share = !!navigator.canShare?.({ files: [file] });
   const s = openSheet("Identifier l’œuvre", `<p class="lead">Google Lens compare ta photo à des images du web pour retrouver le tableau et l’artiste. Recopie ensuite ce que tu trouves dans la fiche.</p>
-    <p class="small">Astuce : rogne d’abord autour du tableau, l’identification est plus fiable. Seule l’image est envoyée à Google. Il faut du réseau.</p>
-    <div class="list" style="margin-top:14px"><button class="btn" id="l-go">Ouvrir dans Google Lens</button>
-    ${share ? `<button class="btn alt" id="l-share">Envoyer la photo à une appli</button><p class="small">Si l’option directe ne marche pas, choisis Google ou Lens dans la liste qui s’ouvre.</p>` : ""}</div>`);
-  $("#l-go", s).onclick = () => {
-    if (!navigator.onLine) return toast("Pas de réseau : la recherche Google est impossible hors ligne.");
-    try {
-      const f = document.createElement("form"); f.method = "POST"; f.enctype = "multipart/form-data"; f.target = "_blank"; f.style.display = "none";
-      f.action = "https://lens.google.com/v3/upload?hl=fr&re=df&ep=gsbubb&st=" + Date.now();
-      const i = document.createElement("input"); i.type = "file"; i.name = "encoded_image";
-      const dt = new DataTransfer(); dt.items.add(file); i.files = dt.files;
-      f.append(i); document.body.append(f); f.submit(); f.remove();
-    } catch { toast(share ? "Ouverture directe impossible : utilise « Envoyer la photo à une appli »." : "Ouverture de Google Lens impossible sur cet appareil."); }
-  };
+    <p class="small">Astuce : rogne d’abord autour du tableau, l’identification est plus fiable. Seule l’image est envoyée. Il faut du réseau.</p>
+    <div class="list" style="margin-top:14px">
+    ${share ? `<button class="btn" id="l-share">Envoyer à Google Lens</button><p class="small">Dans la liste qui s’ouvre, choisis « Google », « Lens » ou « Rechercher avec Google Lens ».</p>` : ""}
+    <button class="btn ${share ? "alt" : ""}" id="l-save">Enregistrer la photo dans la galerie</button><p class="small">Ouvre-la ensuite dans Google Photos et touche l’icône Lens en bas de l’écran.</p></div>`);
   const sh = $("#l-share", s);
-  if (sh) sh.onclick = async () => { try { await navigator.share({ files: [file], title: "Œuvre à identifier" }); } catch (e) { if (e?.name !== "AbortError") toast("Le partage n’a pas fonctionné."); } };
+  if (sh) sh.onclick = async () => {
+    if (!navigator.onLine) return toast("Pas de réseau : Google Lens ne fonctionne pas hors ligne.");
+    try { await navigator.share({ files: [file] }); }
+    catch (e) { if (e?.name !== "AbortError") toast("Le partage n’a pas fonctionné : enregistre la photo dans la galerie."); }
+  };
+  $("#l-save", s).onclick = () => {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = file.name;
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    toast("Photo enregistrée dans Téléchargements");
+  };
 }
 $("#file").onchange = async e => {
   const files = [...e.target.files]; e.target.value = "";
