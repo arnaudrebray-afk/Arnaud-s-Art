@@ -153,6 +153,25 @@ main{position:relative;min-height:0;overflow:hidden}
 .full{width:100%;display:block;max-height:58vh;object-fit:contain;background:#ddd8ca;margin-bottom:10px}
 .meta{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:14.5px;margin:6px 0}
 .meta dt{color:var(--ink-2)}.meta dd{margin:0}
+/* Recadrage */
+.crop-w{position:relative;margin:6px auto 0;touch-action:none;user-select:none;-webkit-user-select:none}
+.crop-w canvas{display:block}
+.cr-shade{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.cr-shade div{position:absolute;box-shadow:0 0 0 9999px rgba(18,20,17,.62);outline:1px solid #fff}
+.cr-box{position:absolute;cursor:move;touch-action:none;background:linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 33.33% 0/1px 100% no-repeat,linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 66.66% 0/1px 100% no-repeat,linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 0 33.33%/100% 1px no-repeat,linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.35)) 0 66.66%/100% 1px no-repeat}
+.cr-box i{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;touch-action:none}
+.cr-box i::after{content:"";position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;background:#fff;border:2px solid var(--sapin);border-radius:50%;pointer-events:none}
+.cr-box i[data-h=nw]{left:0;top:0;cursor:nwse-resize}.cr-box i[data-h=n]{left:50%;top:0;cursor:ns-resize}.cr-box i[data-h=ne]{left:100%;top:0;cursor:nesw-resize}.cr-box i[data-h=e]{left:100%;top:50%;cursor:ew-resize}
+.cr-box i[data-h=se]{left:100%;top:100%;cursor:nwse-resize}.cr-box i[data-h=s]{left:50%;top:100%;cursor:ns-resize}.cr-box i[data-h=sw]{left:0;top:100%;cursor:nesw-resize}.cr-box i[data-h=w]{left:0;top:50%;cursor:ew-resize}
+.crop-tools{display:flex;gap:8px;margin-top:16px}.crop-tools .btn{flex:1}
+.prev-act{display:flex;gap:8px;margin-top:8px}.prev-act .btn{flex:1;min-height:42px;padding:6px 10px;font-size:13.5px}
+/* Groupes de l'onglet Œuvres */
+.grp{display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:var(--cartel);color:var(--ink);padding:8px 12px 8px 8px;border-radius:1px}
+.grp .th{display:flex;gap:3px;flex:none}
+.grp .th img,.grp .th span{width:46px;height:46px;object-fit:cover;background:var(--cartel-2);display:block}
+.grp .t{flex:1;min-width:0}
+.grp b{display:block;font-family:var(--display);font-size:18px;font-weight:600;line-height:1.2}
+.grp small{display:block;font-size:13px;color:var(--ink-2);margin-top:2px}
 @media (min-width:760px){.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -941,16 +960,103 @@ async function wikiSearch(q) {
 }
 
 /* ========= Ajout de photos ========= */
+async function blobsFrom(src) {
+  const draw = async (max, q) => {
+    const r = Math.min(1, max / Math.max(src.width, src.height)), c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(src.width * r)); c.height = Math.max(1, Math.round(src.height * r)); c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+    return new Promise(ok => c.toBlob(ok, "image/jpeg", q));
+  };
+  return { photo: await draw(1800, .86), thumb: await draw(320, .78) };
+}
 async function shrink(file) {
   let bmp;
   try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
   catch { return null; }
-  const draw = async (max, q) => {
-    const r = Math.min(1, max / Math.max(bmp.width, bmp.height)), c = document.createElement("canvas");
-    c.width = Math.round(bmp.width * r); c.height = Math.round(bmp.height * r); c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-    return new Promise(ok => c.toBlob(ok, "image/jpeg", q));
+  const out = await blobsFrom(bmp); bmp.close?.(); return out;
+}
+function rotated(bmp, rot, scale) {
+  const c = document.createElement("canvas"), side = rot % 2;
+  c.width = Math.round((side ? bmp.height : bmp.width) * scale); c.height = Math.round((side ? bmp.width : bmp.height) * scale);
+  const g = c.getContext("2d"); g.translate(c.width / 2, c.height / 2); g.rotate(rot * Math.PI / 2);
+  g.drawImage(bmp, -bmp.width * scale / 2, -bmp.height * scale / 2, bmp.width * scale, bmp.height * scale); return c;
+}
+
+/* Recadrage : poignées sur les quatre bords et les quatre coins, déplacement du cadre, rotation par quart de tour */
+async function cropEditor(blob) {
+  let bmp; try { bmp = await createImageBitmap(blob); } catch { toast("Cette photo ne peut pas être recadrée."); return null; }
+  let rot = 0, r = { x: 0, y: 0, w: 1, h: 1 }, W = 0, H = 0, done = false;
+  return new Promise(resolve => {
+    const s = openSheet("Rogner la photo", `<p class="hint">Tire les ronds blancs pour rogner en haut, en bas ou sur les côtés. Fais glisser le cadre pour le déplacer.</p>
+      <div class="crop-w" id="cr"><canvas id="cr-c"></canvas><div class="cr-shade"><div id="cr-s"></div></div>
+      <div class="cr-box" id="cr-b">${["nw", "n", "ne", "e", "se", "s", "sw", "w"].map(h => `<i data-h="${h}"></i>`).join("")}</div></div>
+      <div class="crop-tools"><button class="btn alt" id="cr-rot">Pivoter d’un quart de tour</button><button class="btn alt" id="cr-all">Image entière</button></div>`,
+      `<button class="btn alt" id="cr-no">Annuler</button><button class="btn" id="cr-ok">Valider le recadrage</button>`);
+    s.dataset.sticky = "1";
+    const wrap = $("#cr", s), cv = $("#cr-c", s), box = $("#cr-b", s), shade = $("#cr-s", s), body = $(".sheet-b", s);
+    function draw() {
+      const side = rot % 2, iw = side ? bmp.height : bmp.width, ih = side ? bmp.width : bmp.height;
+      const sc = Math.min((body.clientWidth - 28) / iw, (window.innerHeight * .56) / ih, 1);
+      W = Math.round(iw * sc); H = Math.round(ih * sc);
+      const dpr = Math.min(2, window.devicePixelRatio || 1), c = rotated(bmp, rot, sc * dpr);
+      cv.width = c.width; cv.height = c.height; cv.getContext("2d").drawImage(c, 0, 0);
+      cv.style.width = W + "px"; cv.style.height = H + "px"; wrap.style.width = W + "px"; wrap.style.height = H + "px";
+      paint();
+    }
+    function paint() { for (const e of [box, shade]) Object.assign(e.style, { left: r.x * W + "px", top: r.y * H + "px", width: r.w * W + "px", height: r.h * H + "px" }); }
+    let drag = null; const MIN = .06;
+    wrap.addEventListener("pointerdown", e => {
+      const h = e.target.dataset?.h || (e.target === box ? "move" : null); if (!h) return;
+      e.preventDefault(); drag = { h, x: e.clientX, y: e.clientY, r: { ...r } };
+      try { wrap.setPointerCapture(e.pointerId); } catch {}
+    });
+    wrap.addEventListener("pointermove", e => {
+      if (!drag) return;
+      const dx = (e.clientX - drag.x) / W, dy = (e.clientY - drag.y) / H, o = drag.r, h = drag.h, n = { ...o };
+      if (h === "move") { n.x = clamp(o.x + dx, 0, 1 - o.w); n.y = clamp(o.y + dy, 0, 1 - o.h); }
+      else {
+        if (h.includes("n")) { n.y = clamp(o.y + dy, 0, o.y + o.h - MIN); n.h = o.y + o.h - n.y; }
+        if (h.includes("s")) n.h = clamp(o.h + dy, MIN, 1 - o.y);
+        if (h.includes("w")) { n.x = clamp(o.x + dx, 0, o.x + o.w - MIN); n.w = o.x + o.w - n.x; }
+        if (h.includes("e")) n.w = clamp(o.w + dx, MIN, 1 - o.x);
+      }
+      r = n; paint();
+    });
+    const end = () => { drag = null; }; wrap.addEventListener("pointerup", end); wrap.addEventListener("pointercancel", end);
+    $("#cr-rot", s).onclick = () => { rot = (rot + 1) % 4; r = { x: 0, y: 0, w: 1, h: 1 }; draw(); };
+    $("#cr-all", s).onclick = () => { r = { x: 0, y: 0, w: 1, h: 1 }; paint(); };
+    $("#cr-no", s).onclick = () => closeSheet();
+    $("#cr-ok", s).onclick = async () => {
+      const full = rotated(bmp, rot, 1), c = document.createElement("canvas");
+      const sx = Math.round(r.x * full.width), sy = Math.round(r.y * full.height);
+      c.width = Math.max(1, Math.round(r.w * full.width)); c.height = Math.max(1, Math.round(r.h * full.height));
+      c.getContext("2d").drawImage(full, sx, sy, c.width, c.height, 0, 0, c.width, c.height);
+      const out = await blobsFrom(c); done = true; resolve(out); closeSheet();
+    };
+    s.onclosed = () => { bmp.close?.(); if (!done) { done = true; resolve(null); } };
+    draw();
+  });
+}
+
+/* Identification : la photo seule part vers Google Lens, jamais tes notes */
+function lensSheet(blob) {
+  const file = new File([blob], "oeuvre.jpg", { type: "image/jpeg" });
+  const share = !!navigator.canShare?.({ files: [file] });
+  const s = openSheet("Identifier l’œuvre", `<p class="lead">Google Lens compare ta photo à des images du web pour retrouver le tableau et l’artiste. Recopie ensuite ce que tu trouves dans la fiche.</p>
+    <p class="small">Astuce : rogne d’abord autour du tableau, l’identification est plus fiable. Seule l’image est envoyée à Google. Il faut du réseau.</p>
+    <div class="list" style="margin-top:14px"><button class="btn" id="l-go">Ouvrir dans Google Lens</button>
+    ${share ? `<button class="btn alt" id="l-share">Envoyer la photo à une appli</button><p class="small">Si l’option directe ne marche pas, choisis Google ou Lens dans la liste qui s’ouvre.</p>` : ""}</div>`);
+  $("#l-go", s).onclick = () => {
+    if (!navigator.onLine) return toast("Pas de réseau : la recherche Google est impossible hors ligne.");
+    try {
+      const f = document.createElement("form"); f.method = "POST"; f.enctype = "multipart/form-data"; f.target = "_blank"; f.style.display = "none";
+      f.action = "https://lens.google.com/v3/upload?hl=fr&re=df&ep=gsbubb&st=" + Date.now();
+      const i = document.createElement("input"); i.type = "file"; i.name = "encoded_image";
+      const dt = new DataTransfer(); dt.items.add(file); i.files = dt.files;
+      f.append(i); document.body.append(f); f.submit(); f.remove();
+    } catch { toast(share ? "Ouverture directe impossible : utilise « Envoyer la photo à une appli »." : "Ouverture de Google Lens impossible sur cet appareil."); }
   };
-  const out = { photo: await draw(1800, .84), thumb: await draw(320, .78) }; bmp.close?.(); return out;
+  const sh = $("#l-share", s);
+  if (sh) sh.onclick = async () => { try { await navigator.share({ files: [file], title: "Œuvre à identifier" }); } catch (e) { if (e?.name !== "AbortError") toast("Le partage n’a pas fonctionné."); } };
 }
 $("#file").onchange = async e => {
   const files = [...e.target.files]; e.target.value = "";
@@ -971,12 +1077,12 @@ const lastCtx = () => { const w = [...works].sort((a, b) => b.createdAt - a.crea
 
 function workForm({ imgs, fileDate, step, work }) {
   return new Promise(resolve => {
-    const w = work || {}; const url = imgs?.photo ? URL.createObjectURL(imgs.photo) : "";
+    const w = work || {}; let photo = imgs?.photo || null, th = imgs?.thumb || null, changed = !!photo, url = photo ? URL.createObjectURL(photo) : "";
     const ctx0 = w.ctx || "expo"; const prev = work ? null : lastCtx();
     const date0 = w.date || (fileDate ? new Date(fileDate).toISOString().slice(0, 10) : "");
     const f = (id, label, val = "", extra = "") => `<div class="f"><label for="${id}">${label}</label><input id="${id}" value="${esc(val)}" autocomplete="off" ${extra}></div>`;
     const s = openSheet(work ? "Modifier la fiche" : (step || "Nouvelle œuvre"), `
-      ${url ? `<img class="prev" alt="Photo importée" src="${url}">` : ""}
+      <div id="w-pv"></div>
       <p class="hint" style="margin-top:8px">Remplis ce que tu sais : tout est facultatif, tu pourras compléter plus tard.</p>
       <div class="form">
         ${f("w-artist", "Artiste", w.artist, 'list="dl-art"')}
@@ -1019,14 +1125,24 @@ function workForm({ imgs, fileDate, step, work }) {
     const same = $("#w-same", s);
     if (same) same.onclick = () => { ctx = prev.ctx; $("#w-expo", s).value = prev.expo || ""; $("#w-place", s).value = prev.place || ""; $("#w-book", s).value = prev.book || ""; $("#w-date", s).value = prev.date || $("#w-date", s).value; paintCtx(); same.remove(); };
     paintCtx(); paintStars(); paintSug();
+    const pv = $("#w-pv", s);
+    const paintPv = () => { pv.innerHTML = url ? `<img class="prev" alt="Photo de l’œuvre" src="${url}"><div class="prev-act"><button type="button" class="btn alt" id="w-crop">Rogner</button><button type="button" class="btn alt" id="w-lens">Identifier avec Google</button></div>` : ""; };
+    paintPv();
+    if (!photo && w.hasPhoto) dbGet("photos", w.id).then(p => { if (p && !done) { photo = p.blob; url = URL.createObjectURL(photo); paintPv(); } });
+    pv.onclick = async e => {
+      if (e.target.closest("#w-lens")) return lensSheet(photo);
+      if (!e.target.closest("#w-crop")) return;
+      const out = await cropEditor(photo);
+      if (out) { photo = out.photo; th = out.thumb; changed = true; URL.revokeObjectURL(url); url = URL.createObjectURL(photo); paintPv(); toast("Photo recadrée"); }
+    };
     const finish = r => { done = true; closeSheet(); resolve(r); };
     s.onclosed = () => { if (url) URL.revokeObjectURL(url); if (!done) { done = true; resolve(step ? "stop" : null); } };
     const skip = $("#w-skip", s); if (skip) skip.onclick = () => finish("skip");
     $("#w-save", s).onclick = async () => {
       const rec = { ...w, id: w.id || uid(), artist: v("w-artist"), title: v("w-title"), year: v("w-year"), movement: mov, technique: v("w-tech"), dims: v("w-dims"), ctx,
-        expo: ctx === "expo" ? v("w-expo") : "", book: ctx === "livre" ? v("w-book") : "", page: ctx === "livre" ? v("w-page") : "", place: ctx === "livre" ? "" : v("w-place"), date: v("w-date"), rating, notes: v("w-notes"), createdAt: w.createdAt || Date.now(), hasPhoto: w.hasPhoto || !!imgs?.photo, thumb: imgs?.thumb || w.thumb || null };
+        expo: ctx === "expo" ? v("w-expo") : "", book: ctx === "livre" ? v("w-book") : "", page: ctx === "livre" ? v("w-page") : "", place: ctx === "livre" ? "" : v("w-place"), date: v("w-date"), rating, notes: v("w-notes"), createdAt: w.createdAt || Date.now(), hasPhoto: w.hasPhoto || !!photo, thumb: changed ? th : (w.thumb || null) };
       try {
-        if (imgs?.photo) await dbPut("photos", { id: rec.id, blob: imgs.photo });
+        if (changed && photo) { await dbPut("photos", { id: rec.id, blob: photo }); const old = thumbUrls.get(rec.id); if (old) URL.revokeObjectURL(old); thumbUrls.delete(rec.id); }
         await dbPut("works", rec);
         const i = works.findIndex(x => x.id === rec.id); if (i >= 0) works[i] = rec; else works.push(rec);
         await linkVisit(rec); resetWorksLayer(); refreshLists();
@@ -1048,7 +1164,7 @@ async function openWork(id) {
   const w = works.find(x => x.id === id); if (!w) return;
   const ph = w.hasPhoto ? await dbGet("photos", id) : null, url = ph ? URL.createObjectURL(ph.blob) : "", m = byId[w.movement];
   const rows = [["Année", w.year], ["Technique", w.technique], ["Dimensions", w.dims], ["Exposition", w.expo], ["Livre", w.book && (w.book + (w.page ? `, p. ${w.page}` : ""))], ["Lieu", w.place], ["Vue le", w.date && new Date(w.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })], ["Ma note", w.rating ? "★".repeat(w.rating) : ""]].filter(r => r[1]);
-  const s = openSheet(w.title || "Sans titre", `${url ? `<img class="full" alt="${esc(w.title || "Œuvre")}" src="${url}">` : ""}
+  const s = openSheet(w.title || "Sans titre", `${url ? `<img class="full" alt="${esc(w.title || "Œuvre")}" src="${url}"><div class="prev-act" style="margin:-2px 0 12px"><button class="btn alt" id="d-lens">Identifier avec Google</button></div>` : ""}
     <p class="dates">${esc(w.artist || "Artiste à préciser")}</p>
     ${rows.length ? `<dl class="meta">${rows.map(r => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join("")}</dl>` : ""}
     ${m ? `<h3>Courant</h3><div class="tags"><button class="tag" data-m="${m.id}">${esc(m.n)}</button></div>` : ""}
@@ -1057,6 +1173,7 @@ async function openWork(id) {
     `<button class="btn danger" id="d-del">Supprimer</button><button class="btn" id="d-edit">Modifier</button>`);
   bindCommon(s);
   s.onclosed = () => url && URL.revokeObjectURL(url);
+  const dl = $("#d-lens", s); if (dl) dl.onclick = () => lensSheet(ph.blob);
   $("#d-edit", s).onclick = async () => { closeSheet(); setTimeout(async () => { await workForm({ work: w }); }, 60); };
   const del = $("#d-del", s);
   del.onclick = async () => {
@@ -1068,7 +1185,9 @@ async function openWork(id) {
 function openGroup(ids) { const list = ids.map(i => works.find(w => w.id === i)).filter(Boolean); const s = openSheet(`${list.length} œuvres`, `<div class="grid">${list.map(tile).join("")}</div>`); bindCommon(s); }
 
 /* ========= Vues ========= */
-let VIEW = "frise", collFilter = "all";
+let VIEW = "frise", collMode = lsGet("collMode", "recent"), groups = [];
+const MODES = { recent: "Récentes", expo: "Expositions", livre: "Livres", lieu: "Lieux", date: "Dates", artiste: "Artistes", courant: "Courants", todo: "À compléter" };
+if (!MODES[collMode]) collMode = "recent";
 const TITLES = { oeuvres: "Mes œuvres", carnet: "Mon carnet", recherche: "Recherche" };
 function go(v) {
   VIEW = v; document.querySelectorAll(".view").forEach(e => e.classList.toggle("on", e.id === "v-" + v));
@@ -1080,18 +1199,71 @@ function go(v) {
 function refreshLists() {
   if (VIEW === "oeuvres") renderColl(); if (VIEW === "carnet") renderCarnet();
 }
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+const wDate = w => w.date || new Date(w.createdAt).toISOString().slice(0, 10);
+const fmtMonth = d => cap(new Date(d.slice(0, 7) + "-15T12:00").toLocaleDateString("fr-FR", { month: "long", year: "numeric" }));
+function groupWorks(mode) {
+  const map = new Map();
+  for (const w of works) {
+    let k = "", label, sort;
+    if (mode === "expo") { if (w.ctx !== "expo") continue; label = w.expo || "Exposition non renseignée"; }
+    else if (mode === "livre") { if (w.ctx !== "livre") continue; label = w.book || "Livre non renseigné"; }
+    else if (mode === "lieu") label = w.place || (w.ctx === "livre" ? "Vues dans un livre" : "Lieu non renseigné");
+    else if (mode === "artiste") label = w.artist || "Artiste non renseigné";
+    else if (mode === "date") { k = sort = wDate(w).slice(0, 7); label = fmtMonth(k); }
+    else if (mode === "courant") { const m = byId[w.movement]; k = m ? m.id : "~"; label = m ? m.n : "Sans courant"; sort = m ? m.s : 1e6; }
+    k = k || norm(label);
+    if (!map.has(k)) map.set(k, { k, label, sort: sort ?? norm(label), list: [], unk: /non renseign|^sans courant/i.test(label) ? 1 : 0 });
+    map.get(k).list.push(w);
+  }
+  const g = [...map.values()];
+  g.forEach(x => x.list.sort((a, b) => wDate(b).localeCompare(wDate(a)) || b.createdAt - a.createdAt));
+  const recent = (a, b) => wDate(b.list[0]).localeCompare(wDate(a.list[0]));
+  if (mode === "date") g.sort((a, b) => b.sort.localeCompare(a.sort));
+  else if (mode === "courant") g.sort((a, b) => a.sort - b.sort);
+  else if (mode === "artiste") g.sort((a, b) => a.unk - b.unk || a.sort.localeCompare(b.sort));
+  else if (mode === "lieu") g.sort((a, b) => a.unk - b.unk || b.list.length - a.list.length || recent(a, b));
+  else g.sort((a, b) => a.unk - b.unk || recent(a, b));
+  return g;
+}
+function groupSub(g, mode) {
+  const n = `${g.list.length} œuvre${g.list.length > 1 ? "s" : ""}`, w = g.list[0];
+  if (mode === "expo") return [n, w.place, w.date && fmtMonth(w.date)].filter(Boolean).join(", ");
+  if (mode === "courant" && byId[g.k]) return `${n}, ${fmtSpan(byId[g.k])}`;
+  if (mode === "lieu" || mode === "artiste") return `${n}, dernière le ${new Date(wDate(w) + "T12:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`;
+  return n;
+}
 function renderColl() {
-  const F = { all: "Toutes", expo: "Expositions", livre: "Livres", lieu: "Autres lieux", todo: "À compléter" };
-  const list = [...works].sort((a, b) => b.createdAt - a.createdAt).filter(w => collFilter === "all" || (collFilter === "todo" ? incomplete(w) : w.ctx === collFilter));
-  $("#v-oeuvres").innerHTML = `<div class="pad"><div class="filters">${Object.entries(F).map(([k, l]) => `<button data-f="${k}" aria-pressed="${collFilter === k}">${l}</button>`).join("")}</div>
-    ${list.length ? `<div class="grid">${list.map(tile).join("")}</div>` : works.length ? `<p class="note">Aucune œuvre dans cette catégorie.</p>` : `<div class="empty"><h2>Ton musée personnel commence ici</h2><p class="note">Appuie sur + pour importer une photo prise en expo ou dans un livre. Elle prendra sa place sur la frise.</p></div>`}</div>`;
+  const v = $("#v-oeuvres");
+  const flt = `<div class="filters" role="group" aria-label="Classer mes œuvres">${Object.entries(MODES).map(([k, l]) => `<button data-f="${k}" aria-pressed="${collMode === k}">${l}</button>`).join("")}</div>`;
+  if (!works.length) { v.innerHTML = `<div class="pad">${flt}<div class="empty"><h2>Ton musée personnel commence ici</h2><p class="note">Appuie sur + pour importer une photo prise en expo ou dans un livre. Elle prendra sa place sur la frise.</p></div></div>`; return; }
+  let body;
+  if (collMode === "recent" || collMode === "todo") {
+    const list = [...works].sort((a, b) => b.createdAt - a.createdAt).filter(w => collMode === "recent" || incomplete(w));
+    body = list.length ? `<div class="grid">${list.map(tile).join("")}</div>` : `<p class="note">Toutes tes fiches sont complètes.</p>`;
+  } else {
+    groups = groupWorks(collMode);
+    body = groups.length ? `<div class="list">${groups.map((g, i) => `<button class="grp" data-g="${i}"><span class="th">${g.list.slice(0, 3).map(w => w.thumb ? `<img alt="" loading="lazy" src="${thumb(w)}">` : "<span></span>").join("")}</span><span class="t"><b>${esc(g.label)}</b><small>${esc(groupSub(g, collMode))}</small></span></button>`).join("")}</div>`
+      : `<p class="note">Aucune œuvre ${collMode === "expo" ? "vue en exposition" : "vue dans un livre"} pour l’instant.</p>`;
+  }
+  v.innerHTML = `<div class="pad">${flt}${body}</div>`;
+  const on = v.querySelector(".filters [aria-pressed=true]"); if (on) on.parentNode.scrollLeft = on.offsetLeft - 16;
+}
+function openCollGroup(g, mode) {
+  const visit = (mode === "expo" || mode === "livre") && visits.find(x => x.kind === mode && norm(x.name) === norm(g.label));
+  const s = openSheet(g.label, `<p class="dates">${esc(groupSub(g, mode))}</p>${visit ? `<div class="tags" style="margin-bottom:12px"><button class="tag" id="g-visit">Voir dans mon carnet</button></div>` : ""}<div class="grid">${g.list.map(tile).join("")}</div>`);
+  bindCommon(s); if (visit) $("#g-visit", s).onclick = () => openVisit(visit.id);
 }
 function renderCarnet() {
   const list = [...visits].sort((a, b) => (b.date || "").localeCompare(a.date || "") || b.createdAt - a.createdAt);
   $("#v-carnet").innerHTML = `<div class="pad"><div class="head-row"><p class="note">${list.length ? `${list.filter(v => v.kind === "expo").length} expositions, ${list.filter(v => v.kind === "livre").length} livres` : ""}</p><button class="btn brass" id="c-add">Ajouter</button></div>
     ${list.length ? `<div class="list">${list.map(v => { const n = works.filter(w => (v.kind === "expo" ? w.expo : w.book) && norm(v.kind === "expo" ? w.expo : w.book) === norm(v.name)).length; return `<button class="card" data-v="${v.id}"><h3>${esc(v.name)}</h3><p>${[v.kind === "expo" ? "Exposition" : "Livre", v.place, v.date && new Date(v.date).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }), n ? `${n} œuvre${n > 1 ? "s" : ""}` : ""].filter(Boolean).map(esc).join(", ")}${v.rating ? " " + "★".repeat(v.rating) : ""}</p>${v.notes ? `<p class="quote">${esc(v.notes.slice(0, 140))}${v.notes.length > 140 ? "…" : ""}</p>` : ""}</button>`; }).join("")}</div>` : `<div class="empty"><h2>Aucune sortie notée</h2><p class="note">Ajoute une exposition ou un livre, avec tes impressions. Ceux que tu cites en ajoutant une photo apparaissent aussi ici.</p></div>`}</div>`;
 }
-$("#v-oeuvres").onclick = e => { const f = e.target.closest("[data-f]"); if (f) { collFilter = f.dataset.f; renderColl(); return; } const w = e.target.closest("[data-w]"); if (w) openWork(w.dataset.w); };
+$("#v-oeuvres").onclick = e => {
+  const f = e.target.closest("[data-f]"); if (f) { collMode = f.dataset.f; lsSet("collMode", collMode); renderColl(); return; }
+  const g = e.target.closest("[data-g]"); if (g) { openCollGroup(groups[+g.dataset.g], collMode); return; }
+  const w = e.target.closest("[data-w]"); if (w) openWork(w.dataset.w);
+};
 $("#v-carnet").onclick = e => { if (e.target.closest("#c-add")) return visitForm(); const c = e.target.closest("[data-v]"); if (c) openVisit(c.dataset.v); };
 
 function visitForm(v0) {
